@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../../create-context';
-import { db } from '../../../../db';
-import bcrypt from 'bcryptjs';
+import { supabase } from '@/lib/supabase';
 
 const confirmResetSchema = z.object({
   token: z.string(),
@@ -13,25 +12,13 @@ export const confirmResetProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Password reset confirmation');
 
-    const resetToken = db.getResetToken(input.token);
-    if (!resetToken) {
-      throw new Error('Invalid or expired reset token');
+    const { error } = await supabase.auth.updateUser({
+      password: input.newPassword,
+    });
+
+    if (error) {
+      throw new Error('Failed to reset password: ' + error.message);
     }
-
-    if (resetToken.expiresAt < new Date()) {
-      db.deleteResetToken(input.token);
-      throw new Error('Reset token has expired');
-    }
-
-    const user = db.getUserByEmail(resetToken.email);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    const passwordHash = await bcrypt.hash(input.newPassword, 10);
-    db.updateUser(user.id, { ...user, passwordHash } as any);
-
-    db.deleteResetToken(input.token);
 
     console.log('Password reset successful');
 

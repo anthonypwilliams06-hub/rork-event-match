@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../../create-context';
 import { db } from '../../../../db';
-import { User } from '@/types';
-import bcrypt from 'bcryptjs';
+import { supabase } from '@/lib/supabase';
 
 const signupSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -23,41 +22,32 @@ export const signupProcedure = publicProcedure
       throw new Error('You must be at least 18 years old to create an account');
     }
 
-    const existingUser = db.getUserByEmail(input.email);
+    const existingUser = await db.getUserByEmail(input.email);
     if (existingUser) {
       throw new Error('An account with this email already exists');
     }
 
-    const passwordHash = await bcrypt.hash(input.password, 10);
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: input.email,
+      password: input.password,
+    });
 
-    const user: User & { passwordHash: string } = {
-      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    if (authError || !authData.user) {
+      throw new Error(authError?.message || 'Failed to create account');
+    }
+
+    const createdUser = await db.createUser({
+      id: authData.user.id,
       email: input.email,
       name: input.name,
       dateOfBirth: birthDate,
       age,
-      createdAt: new Date(),
-      passwordHash,
-    };
-
-    const createdUser = db.createUser(user);
-
-    const token = `token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    db.createSession({
-      userId: createdUser.id,
-      token,
-      expiresAt,
     });
 
-    const { passwordHash: _, ...userWithoutPassword } = createdUser;
-
-    console.log('User created successfully:', userWithoutPassword.id);
+    console.log('User created successfully:', createdUser.id);
 
     return {
-      user: userWithoutPassword,
-      token,
-      expiresAt,
+      user: createdUser,
+      session: authData.session,
     };
   });

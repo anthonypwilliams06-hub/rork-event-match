@@ -7,6 +7,7 @@ import { requestResetProcedure } from "./routes/auth/reset-password/request-rese
 import { confirmResetProcedure } from "./routes/auth/reset-password/confirm-reset";
 import { createProfileProcedure } from "./routes/profile/create-profile";
 import { updateProfileProcedure } from "./routes/profile/update-profile";
+import { getProfileProcedure } from "./routes/profile/get-profile";
 import { createEventProcedure } from "./routes/events/create";
 import { updateEventProcedure } from "./routes/events/update";
 import { deleteEventProcedure } from "./routes/events/delete";
@@ -54,6 +55,7 @@ export const appRouter = createTRPCRouter({
   profile: createTRPCRouter({
     create: createProfileProcedure,
     update: updateProfileProcedure,
+    get: getProfileProcedure,
   }),
   events: createTRPCRouter({
     create: createEventProcedure,

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../../create-context';
-import { db } from '../../../../db';
+import { supabase } from '@/lib/supabase';
 
 const logoutSchema = z.object({
   token: z.string(),
@@ -8,10 +8,10 @@ const logoutSchema = z.object({
 
 export const logoutProcedure = publicProcedure
   .input(logoutSchema)
-  .mutation(async ({ input }) => {
+  .mutation(async () => {
     console.log('Logout attempt');
 
-    db.deleteSession(input.token);
+    await supabase.auth.signOut();
 
     console.log('Logout successful');
 

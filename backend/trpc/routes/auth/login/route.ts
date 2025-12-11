@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../../create-context';
 import { db } from '../../../../db';
-import bcrypt from 'bcryptjs';
+import { supabase } from '@/lib/supabase';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -13,34 +13,32 @@ export const loginProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Login attempt:', input.email);
 
-    const user = db.getUserByEmail(input.email);
-    if (!user) {
-      throw new Error('Invalid email or password');
-    }
-
-    const isValidPassword = await bcrypt.compare(input.password, user.passwordHash);
-    if (!isValidPassword) {
-      throw new Error('Invalid email or password');
-    }
-
-    const token = `token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    db.createSession({
-      userId: user.id,
-      token,
-      expiresAt,
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: input.email,
+      password: input.password,
     });
 
-    const profile = db.getProfileByUserId(user.id);
+    if (authError || !authData.user || !authData.session) {
+      throw new Error('Invalid email or password');
+    }
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    let user = await db.getUserById(authData.user.id);
+    if (!user) {
+      user = await db.createUser({
+        id: authData.user.id,
+        email: input.email,
+        name: authData.user.user_metadata?.name || input.email.split('@')[0],
+        dateOfBirth: new Date(),
+        age: 18,
+      });
+    }
+
+    const profile = await db.getProfileByUserId(user.id);
 
     console.log('Login successful:', user.id);
 
     return {
-      user: { ...userWithoutPassword, profile },
-      token,
-      expiresAt,
+      user: { ...user, profile },
+      session: authData.session,
     };
   });

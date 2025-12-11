@@ -21,22 +21,12 @@ export const createProfileProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Create profile attempt');
 
-    const session = db.getSession(input.token);
-    if (!session) {
-      throw new Error('Invalid session');
-    }
-
-    if (session.expiresAt < new Date()) {
-      db.deleteSession(input.token);
-      throw new Error('Session expired');
-    }
-
-    const user = db.getUserById(session.userId);
+    const user = await db.getUserById(input.token);
     if (!user) {
-      throw new Error('User not found');
+      throw new Error('User not found or invalid session');
     }
 
-    const existingProfile = db.getProfileByUserId(user.id);
+    const existingProfile = await db.getProfileByUserId(user.id);
     if (existingProfile) {
       throw new Error('Profile already exists');
     }
@@ -54,7 +44,7 @@ export const createProfileProcedure = publicProcedure
       ageRangeMax: input.ageRangeMax,
     };
 
-    const createdProfile = db.createProfile(profile);
+    const createdProfile = await db.createProfile(profile);
 
     console.log('Profile created successfully');
 

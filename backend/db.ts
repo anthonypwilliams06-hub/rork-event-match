@@ -1,418 +1,1218 @@
+import { createClient } from '@supabase/supabase-js';
 import { User, UserProfile, Event, FavoriteEvent, Message, Conversation, Rating, BlockedUser, Report, Notification, NotificationSettings, EventSafetyInfo, EventAttendee, VerificationRequest, Payment, Payout } from '@/types';
 
-interface PasswordResetToken {
-  email: string;
-  token: string;
-  expiresAt: Date;
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.warn('⚠️  Supabase URL or Service Role Key is missing. Backend will not function properly.');
 }
 
-interface SessionToken {
-  userId: string;
-  token: string;
-  expiresAt: Date;
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
+
+export class SupabaseDB {
+  async createUser(user: Omit<User, 'createdAt'> & { passwordHash?: string }): Promise<User> {
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .insert({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        date_of_birth: user.dateOfBirth,
+        age: user.age,
+        push_token: user.pushToken,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create user: ${error.message}`);
+    return this.mapUserFromDB(data);
+  }
+
+  async getUserById(id: string): Promise<User | null> {
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get user: ${error.message}`);
+    }
+    return this.mapUserFromDB(data);
+  }
+
+  async getUserByEmail(email: string): Promise<User | null> {
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get user by email: ${error.message}`);
+    }
+    return this.mapUserFromDB(data);
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User | null> {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.name) dbUpdates.name = updates.name;
+    if (updates.age) dbUpdates.age = updates.age;
+    if (updates.pushToken) dbUpdates.push_token = updates.pushToken;
+    if (updates.dateOfBirth) dbUpdates.date_of_birth = updates.dateOfBirth;
+
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update user: ${error.message}`);
+    return this.mapUserFromDB(data);
+  }
+
+  async createProfile(profile: UserProfile): Promise<UserProfile> {
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        user_id: profile.userId,
+        role: profile.role,
+        bio: profile.bio,
+        photo_url: profile.photoUrl,
+        interests: profile.interests,
+        personality_traits: profile.personalityTraits,
+        relationship_goal: profile.relationshipGoal,
+        location: profile.location,
+        age_range_min: profile.ageRangeMin,
+        age_range_max: profile.ageRangeMax,
+        verification_status: profile.verificationStatus || 'unverified',
+        verification_photo: profile.verificationPhoto,
+        premium_tier: profile.premiumTier || 'free',
+        premium_expires_at: profile.premiumExpiresAt,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create profile: ${error.message}`);
+    return this.mapProfileFromDB(data);
+  }
+
+  async getProfileByUserId(userId: string): Promise<UserProfile | null> {
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get profile: ${error.message}`);
+    }
+    return this.mapProfileFromDB(data);
+  }
+
+  async updateProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.role !== undefined) dbUpdates.role = updates.role;
+    if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
+    if (updates.photoUrl !== undefined) dbUpdates.photo_url = updates.photoUrl;
+    if (updates.interests !== undefined) dbUpdates.interests = updates.interests;
+    if (updates.personalityTraits !== undefined) dbUpdates.personality_traits = updates.personalityTraits;
+    if (updates.relationshipGoal !== undefined) dbUpdates.relationship_goal = updates.relationshipGoal;
+    if (updates.location !== undefined) dbUpdates.location = updates.location;
+    if (updates.ageRangeMin !== undefined) dbUpdates.age_range_min = updates.ageRangeMin;
+    if (updates.ageRangeMax !== undefined) dbUpdates.age_range_max = updates.ageRangeMax;
+    if (updates.verificationStatus !== undefined) dbUpdates.verification_status = updates.verificationStatus;
+    if (updates.verificationPhoto !== undefined) dbUpdates.verification_photo = updates.verificationPhoto;
+    if (updates.premiumTier !== undefined) dbUpdates.premium_tier = updates.premiumTier;
+    if (updates.premiumExpiresAt !== undefined) dbUpdates.premium_expires_at = updates.premiumExpiresAt;
+
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .update(dbUpdates)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update profile: ${error.message}`);
+    return this.mapProfileFromDB(data);
+  }
+
+  async createEvent(event: Event): Promise<Event> {
+    const { data, error } = await supabaseAdmin
+      .from('events')
+      .insert({
+        id: event.id,
+        creator_id: event.creatorId,
+        title: event.title,
+        description: event.description,
+        date: event.date,
+        time: event.time,
+        location: event.location,
+        latitude: event.latitude,
+        longitude: event.longitude,
+        category: event.category,
+        vibes: event.vibes,
+        image_url: event.imageUrl,
+        capacity: event.capacity,
+        spots_available: event.spotsAvailable,
+        attendee_ids: event.attendeeIds,
+        status: event.status,
+        is_draft: event.isDraft,
+        is_paid: event.isPaid,
+        price: event.price,
+        currency: event.currency,
+        views: event.views,
+        likes: event.likes,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create event: ${error.message}`);
+    return this.mapEventFromDB(data);
+  }
+
+  async getEventById(id: string): Promise<Event | null> {
+    const { data, error } = await supabaseAdmin
+      .from('events')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get event: ${error.message}`);
+    }
+    return this.mapEventFromDB(data);
+  }
+
+  async getEventsByCreatorId(creatorId: string): Promise<Event[]> {
+    const { data, error } = await supabaseAdmin
+      .from('events')
+      .select('*')
+      .eq('creator_id', creatorId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get events by creator: ${error.message}`);
+    return data.map(event => this.mapEventFromDB(event));
+  }
+
+  async getAllEvents(): Promise<Event[]> {
+    const { data, error } = await supabaseAdmin
+      .from('events')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get all events: ${error.message}`);
+    return data.map(event => this.mapEventFromDB(event));
+  }
+
+  async updateEvent(id: string, updates: Partial<Event>): Promise<Event | null> {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.date !== undefined) dbUpdates.date = updates.date;
+    if (updates.time !== undefined) dbUpdates.time = updates.time;
+    if (updates.location !== undefined) dbUpdates.location = updates.location;
+    if (updates.latitude !== undefined) dbUpdates.latitude = updates.latitude;
+    if (updates.longitude !== undefined) dbUpdates.longitude = updates.longitude;
+    if (updates.category !== undefined) dbUpdates.category = updates.category;
+    if (updates.vibes !== undefined) dbUpdates.vibes = updates.vibes;
+    if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl;
+    if (updates.capacity !== undefined) dbUpdates.capacity = updates.capacity;
+    if (updates.spotsAvailable !== undefined) dbUpdates.spots_available = updates.spotsAvailable;
+    if (updates.attendeeIds !== undefined) dbUpdates.attendee_ids = updates.attendeeIds;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.isDraft !== undefined) dbUpdates.is_draft = updates.isDraft;
+    if (updates.isPaid !== undefined) dbUpdates.is_paid = updates.isPaid;
+    if (updates.price !== undefined) dbUpdates.price = updates.price;
+    if (updates.currency !== undefined) dbUpdates.currency = updates.currency;
+    if (updates.views !== undefined) dbUpdates.views = updates.views;
+    if (updates.likes !== undefined) dbUpdates.likes = updates.likes;
+
+    const { data, error } = await supabaseAdmin
+      .from('events')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update event: ${error.message}`);
+    return this.mapEventFromDB(data);
+  }
+
+  async deleteEvent(id: string): Promise<boolean> {
+    const { error } = await supabaseAdmin
+      .from('events')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error(`Failed to delete event: ${error.message}`);
+    return true;
+  }
+
+  async createFavorite(favorite: FavoriteEvent): Promise<FavoriteEvent> {
+    const { data, error } = await supabaseAdmin
+      .from('favorites')
+      .insert({
+        id: favorite.id,
+        user_id: favorite.userId,
+        event_id: favorite.eventId,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create favorite: ${error.message}`);
+    return this.mapFavoriteFromDB(data);
+  }
+
+  async getFavoriteById(id: string): Promise<FavoriteEvent | null> {
+    const { data, error } = await supabaseAdmin
+      .from('favorites')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get favorite: ${error.message}`);
+    }
+    return this.mapFavoriteFromDB(data);
+  }
+
+  async getFavoriteByUserAndEvent(userId: string, eventId: string): Promise<FavoriteEvent | null> {
+    const { data, error } = await supabaseAdmin
+      .from('favorites')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('event_id', eventId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get favorite by user and event: ${error.message}`);
+    }
+    return this.mapFavoriteFromDB(data);
+  }
+
+  async getFavoritesByUserId(userId: string): Promise<FavoriteEvent[]> {
+    const { data, error } = await supabaseAdmin
+      .from('favorites')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get favorites by user: ${error.message}`);
+    return data.map(fav => this.mapFavoriteFromDB(fav));
+  }
+
+  async deleteFavorite(id: string): Promise<boolean> {
+    const { error } = await supabaseAdmin
+      .from('favorites')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error(`Failed to delete favorite: ${error.message}`);
+    return true;
+  }
+
+  async createMessage(message: Message): Promise<Message> {
+    const { data, error } = await supabaseAdmin
+      .from('messages')
+      .insert({
+        id: message.id,
+        sender_id: message.senderId,
+        receiver_id: message.receiverId,
+        content: message.content,
+        read: message.read,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create message: ${error.message}`);
+    return this.mapMessageFromDB(data);
+  }
+
+  async getMessageById(id: string): Promise<Message | null> {
+    const { data, error } = await supabaseAdmin
+      .from('messages')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get message: ${error.message}`);
+    }
+    return this.mapMessageFromDB(data);
+  }
+
+  async getMessagesBetweenUsers(userId1: string, userId2: string): Promise<Message[]> {
+    const { data, error } = await supabaseAdmin
+      .from('messages')
+      .select('*')
+      .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
+      .order('created_at', { ascending: true });
+
+    if (error) throw new Error(`Failed to get messages between users: ${error.message}`);
+    return data.map(msg => this.mapMessageFromDB(msg));
+  }
+
+  async markMessageAsRead(id: string): Promise<Message | null> {
+    const { data, error } = await supabaseAdmin
+      .from('messages')
+      .update({ read: true })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to mark message as read: ${error.message}`);
+    return this.mapMessageFromDB(data);
+  }
+
+  async createOrUpdateConversation(conversation: Conversation): Promise<Conversation> {
+    const sortedIds = [...conversation.participantIds].sort();
+    const { data: existing } = await supabaseAdmin
+      .from('conversations')
+      .select('*')
+      .contains('participant_ids', sortedIds)
+      .single();
+
+    if (existing) {
+      const { data, error } = await supabaseAdmin
+        .from('conversations')
+        .update({
+          last_message_id: conversation.lastMessage?.id,
+        })
+        .eq('id', existing.id)
+        .select()
+        .single();
+
+      if (error) throw new Error(`Failed to update conversation: ${error.message}`);
+      return this.mapConversationFromDB(data);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('conversations')
+      .insert({
+        id: conversation.id,
+        participant_ids: sortedIds,
+        last_message_id: conversation.lastMessage?.id,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create conversation: ${error.message}`);
+    return this.mapConversationFromDB(data);
+  }
+
+  async getConversationById(id: string): Promise<Conversation | null> {
+    const { data, error } = await supabaseAdmin
+      .from('conversations')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get conversation: ${error.message}`);
+    }
+    return this.mapConversationFromDB(data);
+  }
+
+  async getConversationsByUserId(userId: string): Promise<Conversation[]> {
+    const { data, error } = await supabaseAdmin
+      .from('conversations')
+      .select('*')
+      .contains('participant_ids', [userId])
+      .order('updated_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get conversations by user: ${error.message}`);
+    return data.map(conv => this.mapConversationFromDB(conv));
+  }
+
+  async createRating(rating: Rating): Promise<Rating> {
+    const { data, error } = await supabaseAdmin
+      .from('ratings')
+      .insert({
+        id: rating.id,
+        event_id: rating.eventId,
+        reviewer_id: rating.reviewerId,
+        creator_id: rating.creatorId,
+        rating: rating.rating,
+        review: rating.review,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create rating: ${error.message}`);
+    return this.mapRatingFromDB(data);
+  }
+
+  async getRatingById(id: string): Promise<Rating | null> {
+    const { data, error } = await supabaseAdmin
+      .from('ratings')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get rating: ${error.message}`);
+    }
+    return this.mapRatingFromDB(data);
+  }
+
+  async getRatingsByCreatorId(creatorId: string): Promise<Rating[]> {
+    const { data, error } = await supabaseAdmin
+      .from('ratings')
+      .select('*')
+      .eq('creator_id', creatorId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get ratings by creator: ${error.message}`);
+    return data.map(rating => this.mapRatingFromDB(rating));
+  }
+
+  async getRatingByEventAndReviewer(eventId: string, reviewerId: string): Promise<Rating | null> {
+    const { data, error } = await supabaseAdmin
+      .from('ratings')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('reviewer_id', reviewerId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get rating by event and reviewer: ${error.message}`);
+    }
+    return this.mapRatingFromDB(data);
+  }
+
+  async updateRating(id: string, updates: Partial<Rating>): Promise<Rating | null> {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.rating !== undefined) dbUpdates.rating = updates.rating;
+    if (updates.review !== undefined) dbUpdates.review = updates.review;
+
+    const { data, error } = await supabaseAdmin
+      .from('ratings')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update rating: ${error.message}`);
+    return this.mapRatingFromDB(data);
+  }
+
+  async createBlockedUser(blockedUser: BlockedUser): Promise<BlockedUser> {
+    const { data, error } = await supabaseAdmin
+      .from('blocked_users')
+      .insert({
+        id: blockedUser.id,
+        blocker_id: blockedUser.blockerId,
+        blocked_id: blockedUser.blockedId,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to block user: ${error.message}`);
+    return this.mapBlockedUserFromDB(data);
+  }
+
+  async getBlockedUser(blockerId: string, blockedId: string): Promise<BlockedUser | null> {
+    const { data, error } = await supabaseAdmin
+      .from('blocked_users')
+      .select('*')
+      .eq('blocker_id', blockerId)
+      .eq('blocked_id', blockedId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get blocked user: ${error.message}`);
+    }
+    return this.mapBlockedUserFromDB(data);
+  }
+
+  async getBlockedUsersByBlockerId(blockerId: string): Promise<BlockedUser[]> {
+    const { data, error } = await supabaseAdmin
+      .from('blocked_users')
+      .select('*')
+      .eq('blocker_id', blockerId);
+
+    if (error) throw new Error(`Failed to get blocked users: ${error.message}`);
+    return data.map(bu => this.mapBlockedUserFromDB(bu));
+  }
+
+  async deleteBlockedUser(id: string): Promise<boolean> {
+    const { error } = await supabaseAdmin
+      .from('blocked_users')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error(`Failed to unblock user: ${error.message}`);
+    return true;
+  }
+
+  async createReport(report: Report): Promise<Report> {
+    const { data, error } = await supabaseAdmin
+      .from('reports')
+      .insert({
+        id: report.id,
+        reporter_id: report.reporterId,
+        reported_id: report.reportedId,
+        reason: report.reason,
+        description: report.description,
+        status: report.status,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create report: ${error.message}`);
+    return this.mapReportFromDB(data);
+  }
+
+  async getReportById(id: string): Promise<Report | null> {
+    const { data, error } = await supabaseAdmin
+      .from('reports')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get report: ${error.message}`);
+    }
+    return this.mapReportFromDB(data);
+  }
+
+  async getAllReports(): Promise<Report[]> {
+    const { data, error } = await supabaseAdmin
+      .from('reports')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get all reports: ${error.message}`);
+    return data.map(report => this.mapReportFromDB(report));
+  }
+
+  async createNotification(notification: Notification): Promise<Notification> {
+    const { data, error } = await supabaseAdmin
+      .from('notifications')
+      .insert({
+        id: notification.id,
+        user_id: notification.userId,
+        type: notification.type,
+        title: notification.title,
+        body: notification.body,
+        data: notification.data,
+        read: notification.read,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create notification: ${error.message}`);
+    return this.mapNotificationFromDB(data);
+  }
+
+  async getNotificationById(id: string): Promise<Notification | null> {
+    const { data, error } = await supabaseAdmin
+      .from('notifications')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get notification: ${error.message}`);
+    }
+    return this.mapNotificationFromDB(data);
+  }
+
+  async getNotificationsByUserId(userId: string): Promise<Notification[]> {
+    const { data, error } = await supabaseAdmin
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get notifications: ${error.message}`);
+    return data.map(notif => this.mapNotificationFromDB(notif));
+  }
+
+  async markNotificationAsRead(id: string): Promise<Notification | null> {
+    const { data, error } = await supabaseAdmin
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to mark notification as read: ${error.message}`);
+    return this.mapNotificationFromDB(data);
+  }
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+
+    if (error) throw new Error(`Failed to mark all notifications as read: ${error.message}`);
+  }
+
+  async deleteNotification(id: string): Promise<boolean> {
+    const { error } = await supabaseAdmin
+      .from('notifications')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error(`Failed to delete notification: ${error.message}`);
+    return true;
+  }
+
+  async getNotificationSettings(userId: string): Promise<NotificationSettings | null> {
+    const { data, error } = await supabaseAdmin
+      .from('notification_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get notification settings: ${error.message}`);
+    }
+    return this.mapNotificationSettingsFromDB(data);
+  }
+
+  async createOrUpdateNotificationSettings(settings: NotificationSettings): Promise<NotificationSettings> {
+    const { data, error } = await supabaseAdmin
+      .from('notification_settings')
+      .upsert({
+        user_id: settings.userId,
+        new_messages: settings.newMessages,
+        profile_likes: settings.profileLikes,
+        event_reminders: settings.eventReminders,
+        message_replies: settings.messageReplies,
+        event_filling_up: settings.eventFillingUp,
+        push_enabled: settings.pushEnabled,
+      }, {
+        onConflict: 'user_id',
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create/update notification settings: ${error.message}`);
+    return this.mapNotificationSettingsFromDB(data);
+  }
+
+  async createEventSafetyInfo(safetyInfo: EventSafetyInfo): Promise<EventSafetyInfo> {
+    const { data, error } = await supabaseAdmin
+      .from('event_safety')
+      .insert({
+        id: safetyInfo.id,
+        event_id: safetyInfo.eventId,
+        user_id: safetyInfo.userId,
+        trusted_contacts: safetyInfo.trustedContacts,
+        check_in_time: safetyInfo.checkInTime,
+        check_out_time: safetyInfo.checkOutTime,
+        emergency_alert: safetyInfo.emergencyAlert,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create event safety info: ${error.message}`);
+    return this.mapEventSafetyFromDB(data);
+  }
+
+  async getEventSafetyInfo(eventId: string, userId: string): Promise<EventSafetyInfo | null> {
+    const { data, error } = await supabaseAdmin
+      .from('event_safety')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get event safety info: ${error.message}`);
+    }
+    return this.mapEventSafetyFromDB(data);
+  }
+
+  async updateEventSafetyInfo(id: string, updates: Partial<EventSafetyInfo>): Promise<EventSafetyInfo | null> {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.trustedContacts !== undefined) dbUpdates.trusted_contacts = updates.trustedContacts;
+    if (updates.checkInTime !== undefined) dbUpdates.check_in_time = updates.checkInTime;
+    if (updates.checkOutTime !== undefined) dbUpdates.check_out_time = updates.checkOutTime;
+    if (updates.emergencyAlert !== undefined) dbUpdates.emergency_alert = updates.emergencyAlert;
+
+    const { data, error } = await supabaseAdmin
+      .from('event_safety')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update event safety info: ${error.message}`);
+    return this.mapEventSafetyFromDB(data);
+  }
+
+  async createEventAttendee(attendee: EventAttendee): Promise<EventAttendee> {
+    const { data, error } = await supabaseAdmin
+      .from('event_attendees')
+      .insert({
+        id: attendee.id,
+        event_id: attendee.eventId,
+        user_id: attendee.userId,
+        status: attendee.status,
+        ticket_id: attendee.ticketId,
+        paid_amount: attendee.paidAmount,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create event attendee: ${error.message}`);
+    return this.mapEventAttendeeFromDB(data);
+  }
+
+  async getEventAttendees(eventId: string): Promise<EventAttendee[]> {
+    const { data, error } = await supabaseAdmin
+      .from('event_attendees')
+      .select('*')
+      .eq('event_id', eventId);
+
+    if (error) throw new Error(`Failed to get event attendees: ${error.message}`);
+    return data.map(attendee => this.mapEventAttendeeFromDB(attendee));
+  }
+
+  async getUserAttendance(userId: string, eventId: string): Promise<EventAttendee | null> {
+    const { data, error } = await supabaseAdmin
+      .from('event_attendees')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('event_id', eventId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get user attendance: ${error.message}`);
+    }
+    return this.mapEventAttendeeFromDB(data);
+  }
+
+  async updateEventAttendee(id: string, updates: Partial<EventAttendee>): Promise<EventAttendee | null> {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.ticketId !== undefined) dbUpdates.ticket_id = updates.ticketId;
+    if (updates.paidAmount !== undefined) dbUpdates.paid_amount = updates.paidAmount;
+
+    const { data, error } = await supabaseAdmin
+      .from('event_attendees')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update event attendee: ${error.message}`);
+    return this.mapEventAttendeeFromDB(data);
+  }
+
+  async createVerificationRequest(request: VerificationRequest): Promise<VerificationRequest> {
+    const { data, error } = await supabaseAdmin
+      .from('verification_requests')
+      .insert({
+        id: request.id,
+        user_id: request.userId,
+        photo_url: request.photoUrl,
+        status: request.status,
+        reason: request.reason,
+        reviewed_at: request.reviewedAt,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create verification request: ${error.message}`);
+    return this.mapVerificationRequestFromDB(data);
+  }
+
+  async getVerificationRequestByUserId(userId: string): Promise<VerificationRequest | null> {
+    const { data, error } = await supabaseAdmin
+      .from('verification_requests')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get verification request: ${error.message}`);
+    }
+    return this.mapVerificationRequestFromDB(data);
+  }
+
+  async updateVerificationRequest(id: string, updates: Partial<VerificationRequest>): Promise<VerificationRequest | null> {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.reason !== undefined) dbUpdates.reason = updates.reason;
+    if (updates.reviewedAt !== undefined) dbUpdates.reviewed_at = updates.reviewedAt;
+
+    const { data, error } = await supabaseAdmin
+      .from('verification_requests')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update verification request: ${error.message}`);
+    return this.mapVerificationRequestFromDB(data);
+  }
+
+  async createPayment(payment: Payment): Promise<Payment> {
+    const { data, error } = await supabaseAdmin
+      .from('payments')
+      .insert({
+        id: payment.id,
+        user_id: payment.userId,
+        event_id: payment.eventId,
+        amount: payment.amount,
+        currency: payment.currency,
+        status: payment.status,
+        stripe_payment_intent_id: payment.stripePaymentIntentId,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create payment: ${error.message}`);
+    return this.mapPaymentFromDB(data);
+  }
+
+  async getPaymentById(id: string): Promise<Payment | null> {
+    const { data, error } = await supabaseAdmin
+      .from('payments')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get payment: ${error.message}`);
+    }
+    return this.mapPaymentFromDB(data);
+  }
+
+  async getPaymentsByUserId(userId: string): Promise<Payment[]> {
+    const { data, error } = await supabaseAdmin
+      .from('payments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get payments by user: ${error.message}`);
+    return data.map(payment => this.mapPaymentFromDB(payment));
+  }
+
+  async updatePayment(id: string, updates: Partial<Payment>): Promise<Payment | null> {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.stripePaymentIntentId !== undefined) dbUpdates.stripe_payment_intent_id = updates.stripePaymentIntentId;
+
+    const { data, error } = await supabaseAdmin
+      .from('payments')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update payment: ${error.message}`);
+    return this.mapPaymentFromDB(data);
+  }
+
+  async createPayout(payout: Payout): Promise<Payout> {
+    const { data, error } = await supabaseAdmin
+      .from('payouts')
+      .insert({
+        id: payout.id,
+        creator_id: payout.creatorId,
+        amount: payout.amount,
+        currency: payout.currency,
+        status: payout.status,
+        stripe_payout_id: payout.stripePayoutId,
+        event_ids: payout.eventIds,
+        completed_at: payout.completedAt,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create payout: ${error.message}`);
+    return this.mapPayoutFromDB(data);
+  }
+
+  async getPayoutById(id: string): Promise<Payout | null> {
+    const { data, error } = await supabaseAdmin
+      .from('payouts')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get payout: ${error.message}`);
+    }
+    return this.mapPayoutFromDB(data);
+  }
+
+  async getPayoutsByCreatorId(creatorId: string): Promise<Payout[]> {
+    const { data, error } = await supabaseAdmin
+      .from('payouts')
+      .select('*')
+      .eq('creator_id', creatorId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get payouts by creator: ${error.message}`);
+    return data.map(payout => this.mapPayoutFromDB(payout));
+  }
+
+  async updatePayout(id: string, updates: Partial<Payout>): Promise<Payout | null> {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.stripePayoutId !== undefined) dbUpdates.stripe_payout_id = updates.stripePayoutId;
+    if (updates.completedAt !== undefined) dbUpdates.completed_at = updates.completedAt;
+
+    const { data, error } = await supabaseAdmin
+      .from('payouts')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update payout: ${error.message}`);
+    return this.mapPayoutFromDB(data);
+  }
+
+  private mapUserFromDB(data: Record<string, unknown>): User {
+    return {
+      id: data.id as string,
+      email: data.email as string,
+      name: data.name as string,
+      dateOfBirth: new Date(data.date_of_birth as string),
+      age: data.age as number,
+      createdAt: new Date(data.created_at as string),
+      pushToken: data.push_token as string | undefined,
+    };
+  }
+
+  private mapProfileFromDB(data: Record<string, unknown>): UserProfile {
+    return {
+      userId: data.user_id as string,
+      role: data.role as UserProfile['role'],
+      bio: data.bio as string | undefined,
+      photoUrl: data.photo_url as string | undefined,
+      interests: (data.interests as string[]) || [],
+      personalityTraits: (data.personality_traits as string[]) || [],
+      relationshipGoal: data.relationship_goal as UserProfile['relationshipGoal'],
+      location: data.location as string,
+      ageRangeMin: data.age_range_min as number | undefined,
+      ageRangeMax: data.age_range_max as number | undefined,
+      verificationStatus: data.verification_status as UserProfile['verificationStatus'],
+      verificationPhoto: data.verification_photo as string | undefined,
+      premiumTier: data.premium_tier as UserProfile['premiumTier'],
+      premiumExpiresAt: data.premium_expires_at ? new Date(data.premium_expires_at as string) : undefined,
+    };
+  }
+
+  private mapEventFromDB(data: Record<string, unknown>): Event {
+    return {
+      id: data.id as string,
+      creatorId: data.creator_id as string,
+      title: data.title as string,
+      description: data.description as string,
+      date: new Date(data.date as string),
+      time: data.time as string,
+      location: data.location as string,
+      latitude: data.latitude as number | undefined,
+      longitude: data.longitude as number | undefined,
+      category: data.category as Event['category'],
+      vibes: (data.vibes as Event['vibes']) || [],
+      imageUrl: data.image_url as string,
+      capacity: data.capacity as number | undefined,
+      spotsAvailable: data.spots_available as number | undefined,
+      attendeeIds: (data.attendee_ids as string[]) || [],
+      status: data.status as Event['status'],
+      isDraft: data.is_draft as boolean,
+      isPaid: data.is_paid as boolean,
+      price: data.price as number | undefined,
+      currency: data.currency as string | undefined,
+      views: data.views as number,
+      likes: data.likes as number,
+      createdAt: new Date(data.created_at as string),
+      updatedAt: new Date(data.updated_at as string),
+    };
+  }
+
+  private mapFavoriteFromDB(data: Record<string, unknown>): FavoriteEvent {
+    return {
+      id: data.id as string,
+      userId: data.user_id as string,
+      eventId: data.event_id as string,
+      createdAt: new Date(data.created_at as string),
+    };
+  }
+
+  private mapMessageFromDB(data: Record<string, unknown>): Message {
+    return {
+      id: data.id as string,
+      senderId: data.sender_id as string,
+      receiverId: data.receiver_id as string,
+      content: data.content as string,
+      read: data.read as boolean,
+      createdAt: new Date(data.created_at as string),
+    };
+  }
+
+  private mapConversationFromDB(data: Record<string, unknown>): Conversation {
+    return {
+      id: data.id as string,
+      participantIds: data.participant_ids as string[],
+      updatedAt: new Date(data.updated_at as string),
+    };
+  }
+
+  private mapRatingFromDB(data: Record<string, unknown>): Rating {
+    return {
+      id: data.id as string,
+      eventId: data.event_id as string,
+      reviewerId: data.reviewer_id as string,
+      creatorId: data.creator_id as string,
+      rating: data.rating as number,
+      review: data.review as string | undefined,
+      createdAt: new Date(data.created_at as string),
+    };
+  }
+
+  private mapBlockedUserFromDB(data: Record<string, unknown>): BlockedUser {
+    return {
+      id: data.id as string,
+      blockerId: data.blocker_id as string,
+      blockedId: data.blocked_id as string,
+      createdAt: new Date(data.created_at as string),
+    };
+  }
+
+  private mapReportFromDB(data: Record<string, unknown>): Report {
+    return {
+      id: data.id as string,
+      reporterId: data.reporter_id as string,
+      reportedId: data.reported_id as string,
+      reason: data.reason as string,
+      description: data.description as string | undefined,
+      status: data.status as Report['status'],
+      createdAt: new Date(data.created_at as string),
+    };
+  }
+
+  private mapNotificationFromDB(data: Record<string, unknown>): Notification {
+    return {
+      id: data.id as string,
+      userId: data.user_id as string,
+      type: data.type as Notification['type'],
+      title: data.title as string,
+      body: data.body as string,
+      data: data.data as Notification['data'],
+      read: data.read as boolean,
+      createdAt: new Date(data.created_at as string),
+    };
+  }
+
+  private mapNotificationSettingsFromDB(data: Record<string, unknown>): NotificationSettings {
+    return {
+      userId: data.user_id as string,
+      newMessages: data.new_messages as boolean,
+      profileLikes: data.profile_likes as boolean,
+      eventReminders: data.event_reminders as boolean,
+      messageReplies: data.message_replies as boolean,
+      eventFillingUp: data.event_filling_up as boolean,
+      pushEnabled: data.push_enabled as boolean,
+    };
+  }
+
+  private mapEventSafetyFromDB(data: Record<string, unknown>): EventSafetyInfo {
+    return {
+      id: data.id as string,
+      eventId: data.event_id as string,
+      userId: data.user_id as string,
+      trustedContacts: data.trusted_contacts as EventSafetyInfo['trustedContacts'],
+      checkInTime: data.check_in_time ? new Date(data.check_in_time as string) : undefined,
+      checkOutTime: data.check_out_time ? new Date(data.check_out_time as string) : undefined,
+      emergencyAlert: data.emergency_alert as boolean | undefined,
+      createdAt: new Date(data.created_at as string),
+    };
+  }
+
+  private mapEventAttendeeFromDB(data: Record<string, unknown>): EventAttendee {
+    return {
+      id: data.id as string,
+      eventId: data.event_id as string,
+      userId: data.user_id as string,
+      status: data.status as EventAttendee['status'],
+      ticketId: data.ticket_id as string | undefined,
+      paidAmount: data.paid_amount as number | undefined,
+      createdAt: new Date(data.created_at as string),
+      updatedAt: new Date(data.updated_at as string),
+    };
+  }
+
+  private mapVerificationRequestFromDB(data: Record<string, unknown>): VerificationRequest {
+    return {
+      id: data.id as string,
+      userId: data.user_id as string,
+      photoUrl: data.photo_url as string,
+      status: data.status as VerificationRequest['status'],
+      reason: data.reason as string | undefined,
+      createdAt: new Date(data.created_at as string),
+      reviewedAt: data.reviewed_at ? new Date(data.reviewed_at as string) : undefined,
+    };
+  }
+
+  private mapPaymentFromDB(data: Record<string, unknown>): Payment {
+    return {
+      id: data.id as string,
+      userId: data.user_id as string,
+      eventId: data.event_id as string,
+      amount: data.amount as number,
+      currency: data.currency as string,
+      status: data.status as Payment['status'],
+      stripePaymentIntentId: data.stripe_payment_intent_id as string | undefined,
+      createdAt: new Date(data.created_at as string),
+      updatedAt: new Date(data.updated_at as string),
+    };
+  }
+
+  private mapPayoutFromDB(data: Record<string, unknown>): Payout {
+    return {
+      id: data.id as string,
+      creatorId: data.creator_id as string,
+      amount: data.amount as number,
+      currency: data.currency as string,
+      status: data.status as Payout['status'],
+      stripePayoutId: data.stripe_payout_id as string | undefined,
+      eventIds: data.event_ids as string[],
+      createdAt: new Date(data.created_at as string),
+      completedAt: data.completed_at ? new Date(data.completed_at as string) : undefined,
+    };
+  }
 }
 
-export class InMemoryDB {
-  private users: Map<string, User & { passwordHash: string }> = new Map();
-  private profiles: Map<string, UserProfile> = new Map();
-  private resetTokens: Map<string, PasswordResetToken> = new Map();
-  private sessions: Map<string, SessionToken> = new Map();
-  private events: Map<string, Event> = new Map();
-  private favorites: Map<string, FavoriteEvent> = new Map();
-  private messages: Map<string, Message> = new Map();
-  private conversations: Map<string, Conversation> = new Map();
-  private ratings: Map<string, Rating> = new Map();
-  private blockedUsers: Map<string, BlockedUser> = new Map();
-  private reports: Map<string, Report> = new Map();
-  private notifications: Map<string, Notification> = new Map();
-  private notificationSettings: Map<string, NotificationSettings> = new Map();
-  private eventSafety: Map<string, EventSafetyInfo> = new Map();
-  private eventAttendees: Map<string, EventAttendee> = new Map();
-  private verificationRequests: Map<string, VerificationRequest> = new Map();
-  private payments: Map<string, Payment> = new Map();
-  private payouts: Map<string, Payout> = new Map();
-
-  createUser(user: User & { passwordHash: string }): User & { passwordHash: string } {
-    this.users.set(user.id, user);
-    return user;
-  }
-
-  getUserById(id: string): (User & { passwordHash: string }) | undefined {
-    return this.users.get(id);
-  }
-
-  getUserByEmail(email: string): (User & { passwordHash: string }) | undefined {
-    return Array.from(this.users.values()).find(u => u.email === email);
-  }
-
-  updateUser(id: string, updates: Partial<User>): User | undefined {
-    const user = this.users.get(id);
-    if (!user) return undefined;
-    
-    const updated = { ...user, ...updates };
-    this.users.set(id, updated);
-    return updated;
-  }
-
-  createProfile(profile: UserProfile): UserProfile {
-    this.profiles.set(profile.userId, profile);
-    return profile;
-  }
-
-  getProfileByUserId(userId: string): UserProfile | undefined {
-    return this.profiles.get(userId);
-  }
-
-  updateProfile(userId: string, updates: Partial<UserProfile>): UserProfile | undefined {
-    const profile = this.profiles.get(userId);
-    if (!profile) return undefined;
-    
-    const updated = { ...profile, ...updates };
-    this.profiles.set(userId, updated);
-    return updated;
-  }
-
-  createResetToken(resetToken: PasswordResetToken): void {
-    this.resetTokens.set(resetToken.token, resetToken);
-  }
-
-  getResetToken(token: string): PasswordResetToken | undefined {
-    return this.resetTokens.get(token);
-  }
-
-  deleteResetToken(token: string): void {
-    this.resetTokens.delete(token);
-  }
-
-  createSession(session: SessionToken): void {
-    this.sessions.set(session.token, session);
-  }
-
-  getSession(token: string): SessionToken | undefined {
-    return this.sessions.get(token);
-  }
-
-  deleteSession(token: string): void {
-    this.sessions.delete(token);
-  }
-
-  cleanExpiredSessions(): void {
-    const now = new Date();
-    for (const [token, session] of this.sessions.entries()) {
-      if (session.expiresAt < now) {
-        this.sessions.delete(token);
-      }
-    }
-  }
-
-  cleanExpiredResetTokens(): void {
-    const now = new Date();
-    for (const [token, resetToken] of this.resetTokens.entries()) {
-      if (resetToken.expiresAt < now) {
-        this.resetTokens.delete(token);
-      }
-    }
-  }
-
-  createEvent(event: Event): Event {
-    this.events.set(event.id, event);
-    return event;
-  }
-
-  getEventById(id: string): Event | undefined {
-    return this.events.get(id);
-  }
-
-  getEventsByCreatorId(creatorId: string): Event[] {
-    return Array.from(this.events.values()).filter(e => e.creatorId === creatorId);
-  }
-
-  getAllEvents(): Event[] {
-    return Array.from(this.events.values());
-  }
-
-  updateEvent(id: string, updates: Partial<Event>): Event | undefined {
-    const event = this.events.get(id);
-    if (!event) return undefined;
-    
-    const updated = { ...event, ...updates, updatedAt: new Date() };
-    this.events.set(id, updated);
-    return updated;
-  }
-
-  deleteEvent(id: string): boolean {
-    return this.events.delete(id);
-  }
-
-  createFavorite(favorite: FavoriteEvent): FavoriteEvent {
-    this.favorites.set(favorite.id, favorite);
-    return favorite;
-  }
-
-  getFavoriteById(id: string): FavoriteEvent | undefined {
-    return this.favorites.get(id);
-  }
-
-  getFavoriteByUserAndEvent(userId: string, eventId: string): FavoriteEvent | undefined {
-    return Array.from(this.favorites.values()).find(
-      f => f.userId === userId && f.eventId === eventId
-    );
-  }
-
-  getFavoritesByUserId(userId: string): FavoriteEvent[] {
-    return Array.from(this.favorites.values()).filter(f => f.userId === userId);
-  }
-
-  deleteFavorite(id: string): boolean {
-    return this.favorites.delete(id);
-  }
-
-  createMessage(message: Message): Message {
-    this.messages.set(message.id, message);
-    return message;
-  }
-
-  getMessageById(id: string): Message | undefined {
-    return this.messages.get(id);
-  }
-
-  getMessagesBetweenUsers(userId1: string, userId2: string): Message[] {
-    return Array.from(this.messages.values()).filter(
-      m => (m.senderId === userId1 && m.receiverId === userId2) || (m.senderId === userId2 && m.receiverId === userId1)
-    ).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  }
-
-  markMessageAsRead(id: string): Message | undefined {
-    const message = this.messages.get(id);
-    if (!message) return undefined;
-    message.read = true;
-    return message;
-  }
-
-  createOrUpdateConversation(conversation: Conversation): Conversation {
-    const existingConv = Array.from(this.conversations.values()).find(
-      c => c.participantIds.sort().join(',') === conversation.participantIds.sort().join(',')
-    );
-    if (existingConv) {
-      const updated = { ...existingConv, ...conversation };
-      this.conversations.set(existingConv.id, updated);
-      return updated;
-    }
-    this.conversations.set(conversation.id, conversation);
-    return conversation;
-  }
-
-  getConversationById(id: string): Conversation | undefined {
-    return this.conversations.get(id);
-  }
-
-  getConversationsByUserId(userId: string): Conversation[] {
-    return Array.from(this.conversations.values())
-      .filter(c => c.participantIds.includes(userId))
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-  }
-
-  createRating(rating: Rating): Rating {
-    this.ratings.set(rating.id, rating);
-    return rating;
-  }
-
-  getRatingById(id: string): Rating | undefined {
-    return this.ratings.get(id);
-  }
-
-  getRatingsByCreatorId(creatorId: string): Rating[] {
-    return Array.from(this.ratings.values()).filter(r => r.creatorId === creatorId);
-  }
-
-  getRatingByEventAndReviewer(eventId: string, reviewerId: string): Rating | undefined {
-    return Array.from(this.ratings.values()).find(
-      r => r.eventId === eventId && r.reviewerId === reviewerId
-    );
-  }
-
-  updateRating(id: string, updates: Partial<Rating>): Rating | undefined {
-    const rating = this.ratings.get(id);
-    if (!rating) return undefined;
-    const updated = { ...rating, ...updates };
-    this.ratings.set(id, updated);
-    return updated;
-  }
-
-  createBlockedUser(blockedUser: BlockedUser): BlockedUser {
-    this.blockedUsers.set(blockedUser.id, blockedUser);
-    return blockedUser;
-  }
-
-  getBlockedUser(blockerId: string, blockedId: string): BlockedUser | undefined {
-    return Array.from(this.blockedUsers.values()).find(
-      b => b.blockerId === blockerId && b.blockedId === blockedId
-    );
-  }
-
-  getBlockedUsersByBlockerId(blockerId: string): BlockedUser[] {
-    return Array.from(this.blockedUsers.values()).filter(b => b.blockerId === blockerId);
-  }
-
-  deleteBlockedUser(id: string): boolean {
-    return this.blockedUsers.delete(id);
-  }
-
-  createReport(report: Report): Report {
-    this.reports.set(report.id, report);
-    return report;
-  }
-
-  getReportById(id: string): Report | undefined {
-    return this.reports.get(id);
-  }
-
-  getAllReports(): Report[] {
-    return Array.from(this.reports.values());
-  }
-
-  createNotification(notification: Notification): Notification {
-    this.notifications.set(notification.id, notification);
-    return notification;
-  }
-
-  getNotificationById(id: string): Notification | undefined {
-    return this.notifications.get(id);
-  }
-
-  getNotificationsByUserId(userId: string): Notification[] {
-    return Array.from(this.notifications.values())
-      .filter(n => n.userId === userId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  }
-
-  markNotificationAsRead(id: string): Notification | undefined {
-    const notification = this.notifications.get(id);
-    if (!notification) return undefined;
-    notification.read = true;
-    return notification;
-  }
-
-  markAllNotificationsAsRead(userId: string): void {
-    const userNotifications = this.getNotificationsByUserId(userId);
-    userNotifications.forEach(notification => {
-      notification.read = true;
-    });
-  }
-
-  deleteNotification(id: string): boolean {
-    return this.notifications.delete(id);
-  }
-
-  getNotificationSettings(userId: string): NotificationSettings | undefined {
-    return this.notificationSettings.get(userId);
-  }
-
-  createOrUpdateNotificationSettings(settings: NotificationSettings): NotificationSettings {
-    this.notificationSettings.set(settings.userId, settings);
-    return settings;
-  }
-
-  createEventSafetyInfo(safetyInfo: EventSafetyInfo): EventSafetyInfo {
-    this.eventSafety.set(safetyInfo.id, safetyInfo);
-    return safetyInfo;
-  }
-
-  getEventSafetyInfo(eventId: string, userId: string): EventSafetyInfo | undefined {
-    return Array.from(this.eventSafety.values()).find(
-      s => s.eventId === eventId && s.userId === userId
-    );
-  }
-
-  updateEventSafetyInfo(id: string, updates: Partial<EventSafetyInfo>): EventSafetyInfo | undefined {
-    const safety = this.eventSafety.get(id);
-    if (!safety) return undefined;
-    const updated = { ...safety, ...updates };
-    this.eventSafety.set(id, updated);
-    return updated;
-  }
-
-  createEventAttendee(attendee: EventAttendee): EventAttendee {
-    this.eventAttendees.set(attendee.id, attendee);
-    return attendee;
-  }
-
-  getEventAttendees(eventId: string): EventAttendee[] {
-    return Array.from(this.eventAttendees.values()).filter(a => a.eventId === eventId);
-  }
-
-  getUserAttendance(userId: string, eventId: string): EventAttendee | undefined {
-    return Array.from(this.eventAttendees.values()).find(
-      a => a.userId === userId && a.eventId === eventId
-    );
-  }
-
-  updateEventAttendee(id: string, updates: Partial<EventAttendee>): EventAttendee | undefined {
-    const attendee = this.eventAttendees.get(id);
-    if (!attendee) return undefined;
-    const updated = { ...attendee, ...updates, updatedAt: new Date() };
-    this.eventAttendees.set(id, updated);
-    return updated;
-  }
-
-  createVerificationRequest(request: VerificationRequest): VerificationRequest {
-    this.verificationRequests.set(request.id, request);
-    return request;
-  }
-
-  getVerificationRequestByUserId(userId: string): VerificationRequest | undefined {
-    return Array.from(this.verificationRequests.values()).find(v => v.userId === userId);
-  }
-
-  updateVerificationRequest(id: string, updates: Partial<VerificationRequest>): VerificationRequest | undefined {
-    const request = this.verificationRequests.get(id);
-    if (!request) return undefined;
-    const updated = { ...request, ...updates };
-    this.verificationRequests.set(id, updated);
-    return updated;
-  }
-
-  createPayment(payment: Payment): Payment {
-    this.payments.set(payment.id, payment);
-    return payment;
-  }
-
-  getPaymentById(id: string): Payment | undefined {
-    return this.payments.get(id);
-  }
-
-  getPaymentsByUserId(userId: string): Payment[] {
-    return Array.from(this.payments.values()).filter(p => p.userId === userId);
-  }
-
-  updatePayment(id: string, updates: Partial<Payment>): Payment | undefined {
-    const payment = this.payments.get(id);
-    if (!payment) return undefined;
-    const updated = { ...payment, ...updates, updatedAt: new Date() };
-    this.payments.set(id, updated);
-    return updated;
-  }
-
-  createPayout(payout: Payout): Payout {
-    this.payouts.set(payout.id, payout);
-    return payout;
-  }
-
-  getPayoutById(id: string): Payout | undefined {
-    return this.payouts.get(id);
-  }
-
-  getPayoutsByCreatorId(creatorId: string): Payout[] {
-    return Array.from(this.payouts.values()).filter(p => p.creatorId === creatorId);
-  }
-
-  updatePayout(id: string, updates: Partial<Payout>): Payout | undefined {
-    const payout = this.payouts.get(id);
-    if (!payout) return undefined;
-    const updated = { ...payout, ...updates };
-    this.payouts.set(id, updated);
-    return updated;
-  }
-}
-
-export const db = new InMemoryDB();
+export const db = new SupabaseDB();

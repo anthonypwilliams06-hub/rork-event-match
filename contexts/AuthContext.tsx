@@ -1,77 +1,86 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect } from 'react';
-import { storage } from '@/lib/storage';
-import { User, AuthSession } from '@/types';
+import { User } from '@/types';
 import { trpcClient } from '@/lib/trpc';
-
-const AUTH_TOKEN_KEY = 'auth_token';
-const AUTH_SESSION_KEY = 'auth_session';
+import { supabase } from '@/lib/supabase';
+import { Session } from '@supabase/supabase-js';
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
     loadSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        console.log('Auth state changed:', _event, session?.user?.id);
+        setSession(session);
+        
+        if (session?.user) {
+          const userProfile = await trpcClient.profile.get.query({
+            userId: session.user.id,
+          }).catch(() => null);
+          
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            name: session.user.user_metadata?.name || '',
+            dateOfBirth: new Date(),
+            age: 18,
+            createdAt: new Date(session.user.created_at),
+            profile: userProfile ?? undefined,
+          });
+          setIsAuthenticated(true);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const loadSession = async () => {
     try {
-      console.log('Loading session from storage...');
-      const storedToken = await storage.getItem(AUTH_TOKEN_KEY);
-      const storedSession = await storage.getItem(AUTH_SESSION_KEY);
+      console.log('Loading session from Supabase...');
+      const { data: { session }, error } = await supabase.auth.getSession();
 
-      if (storedToken && storedSession) {
-        console.log('Session found in storage');
-        const session: AuthSession = JSON.parse(storedSession);
+      if (error) {
+        console.error('Error loading session:', error.message);
+        return;
+      }
+
+      if (session) {
+        console.log('Session found:', session.user.id);
+        setSession(session);
         
-        if (new Date(session.expiresAt) > new Date()) {
-          console.log('Session is valid, restoring user:', session.user.email);
-          setToken(storedToken);
-          setUser(session.user);
-          setIsAuthenticated(true);
-        } else {
-          console.log('Session expired, clearing...');
-          await clearSession();
-        }
+        const userProfile = await trpcClient.profile.get.query({
+          userId: session.user.id,
+        }).catch(() => null);
+
+        setUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.name || '',
+          dateOfBirth: new Date(),
+          age: 18,
+          createdAt: new Date(session.user.created_at),
+          profile: userProfile ?? undefined,
+        });
+        setIsAuthenticated(true);
       } else {
-        console.log('No session found in storage');
+        console.log('No session found');
       }
     } catch (error) {
-      console.warn('[Auth] Could not load session from storage:', error instanceof Error ? error.message : 'Unknown error');
+      console.warn('[Auth] Could not load session:', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const saveSession = async (session: AuthSession) => {
-    setToken(session.token);
-    setUser(session.user);
-    setIsAuthenticated(true);
-    
-    try {
-      console.log('Saving session to storage for user:', session.user.email);
-      await storage.setItem(AUTH_TOKEN_KEY, session.token);
-      await storage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-      console.log('Session saved successfully');
-    } catch (error) {
-      console.warn('[Auth] Could not persist session to storage:', error instanceof Error ? error.message : 'Unknown error');
-    }
-  };
-
-  const clearSession = async () => {
-    setToken(null);
-    setUser(null);
-    setIsAuthenticated(false);
-    
-    try {
-      await storage.removeItem(AUTH_TOKEN_KEY);
-      await storage.removeItem(AUTH_SESSION_KEY);
-    } catch (error) {
-      console.warn('[Auth] Could not clear session from storage:', error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
@@ -84,7 +93,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         dateOfBirth: dateOfBirth.toISOString(),
       });
 
-      await saveSession(result);
+      if (result.session) {
+        setSession(result.session);
+        setUser({
+          ...result.user,
+          profile: result.user.profile ?? undefined,
+        });
+        setIsAuthenticated(true);
+      }
+
       return result;
     } catch (error) {
       console.error('Signup error:', error);
@@ -99,7 +116,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         password,
       });
 
-      await saveSession(result);
+      if (result.session) {
+        setSession(result.session);
+        setUser({
+          ...result.user,
+          profile: result.user.profile ?? undefined,
+        });
+        setIsAuthenticated(true);
+      }
+
       return result;
     } catch (error) {
       console.error('Login error:', error);
@@ -109,13 +134,17 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const logout = async () => {
     try {
-      if (token) {
-        await trpcClient.auth.logout.mutate({ token });
-      }
-      await clearSession();
+      await trpcClient.auth.logout.mutate({ token: '' });
+      await supabase.auth.signOut();
+      
+      setSession(null);
+      setUser(null);
+      setIsAuthenticated(false);
     } catch (error) {
       console.error('Logout error:', error);
-      await clearSession();
+      setSession(null);
+      setUser(null);
+      setIsAuthenticated(false);
     }
   };
 
@@ -148,7 +177,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   return {
     user,
-    token,
+    token: session?.access_token || null,
+    session,
     isLoading,
     isAuthenticated,
     signup,
