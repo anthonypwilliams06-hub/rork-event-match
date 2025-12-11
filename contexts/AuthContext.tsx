@@ -41,7 +41,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         console.log('No session found in storage');
       }
     } catch (error) {
-      if (error instanceof Error && error.name === 'SecurityError') {
+      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure'))) {
         console.log('Storage unavailable (insecure context). Session will not persist.');
       } else {
         console.log('Could not load session from storage:', error instanceof Error ? error.message : 'Unknown error');
@@ -58,7 +58,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       await AsyncStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
       console.log('Session saved successfully');
     } catch (error) {
-      if (error instanceof Error && error.name === 'SecurityError') {
+      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure'))) {
         console.log('Storage unavailable (insecure context). Session will not persist across refreshes.');
       } else {
         console.log('Could not persist session to storage:', error instanceof Error ? error.message : 'Unknown error');
@@ -75,7 +75,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
       await AsyncStorage.removeItem(AUTH_SESSION_KEY);
     } catch (error) {
-      if (error instanceof Error && error.name === 'SecurityError') {
+      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure'))) {
         console.log('Storage unavailable (insecure context).');
       } else {
         console.log('Could not clear session from storage:', error instanceof Error ? error.message : 'Unknown error');
