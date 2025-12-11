@@ -1,6 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 
@@ -14,42 +13,41 @@ if (!isSupabaseConfigured) {
   console.warn('Supabase URL or Anon Key is missing. Check your environment variables.');
 }
 
+function isLocalStorageAvailable(): boolean {
+  if (Platform.OS !== 'web') {
+    return false;
+  }
+  try {
+    const testKey = '__storage_test__';
+    window.localStorage.setItem(testKey, testKey);
+    window.localStorage.removeItem(testKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 class SupabaseStorage {
   private memoryStorage: Map<string, string> = new Map();
-  private storageAvailable: boolean | null = null;
+  private useLocalStorage: boolean;
 
-  private async checkStorageAvailable(): Promise<boolean> {
-    if (this.storageAvailable !== null) {
-      return this.storageAvailable;
-    }
-
-    if (Platform.OS !== 'web') {
-      this.storageAvailable = true;
-      return true;
-    }
-
-    try {
-      const testKey = '__supabase_storage_test__';
-      await AsyncStorage.setItem(testKey, 'test');
-      await AsyncStorage.removeItem(testKey);
-      this.storageAvailable = true;
-      return true;
-    } catch {
-      console.warn('[Supabase Storage] AsyncStorage not available, using memory fallback');
-      this.storageAvailable = false;
-      return false;
-    }
+  constructor() {
+    this.useLocalStorage = isLocalStorageAvailable();
+    console.log('[Supabase Storage] Using localStorage:', this.useLocalStorage);
   }
 
   async getItem(key: string): Promise<string | null> {
-    const available = await this.checkStorageAvailable();
-    
-    if (!available) {
-      return this.memoryStorage.get(key) || null;
-    }
-
     try {
-      return await AsyncStorage.getItem(key);
+      if (this.useLocalStorage) {
+        return window.localStorage.getItem(key);
+      }
+      
+      if (Platform.OS !== 'web') {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        return await AsyncStorage.getItem(key);
+      }
+      
+      return this.memoryStorage.get(key) || null;
     } catch (error) {
       console.warn(`[Supabase Storage] Error getting ${key}:`, error);
       return this.memoryStorage.get(key) || null;
@@ -57,32 +55,36 @@ class SupabaseStorage {
   }
 
   async setItem(key: string, value: string): Promise<void> {
-    const available = await this.checkStorageAvailable();
-    
     this.memoryStorage.set(key, value);
-
-    if (!available) {
-      return;
-    }
-
+    
     try {
-      await AsyncStorage.setItem(key, value);
+      if (this.useLocalStorage) {
+        window.localStorage.setItem(key, value);
+        return;
+      }
+      
+      if (Platform.OS !== 'web') {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.setItem(key, value);
+      }
     } catch (error) {
       console.warn(`[Supabase Storage] Error setting ${key}:`, error);
     }
   }
 
   async removeItem(key: string): Promise<void> {
-    const available = await this.checkStorageAvailable();
-    
     this.memoryStorage.delete(key);
-
-    if (!available) {
-      return;
-    }
-
+    
     try {
-      await AsyncStorage.removeItem(key);
+      if (this.useLocalStorage) {
+        window.localStorage.removeItem(key);
+        return;
+      }
+      
+      if (Platform.OS !== 'web') {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.removeItem(key);
+      }
     } catch (error) {
       console.warn(`[Supabase Storage] Error removing ${key}:`, error);
     }
