@@ -31,6 +31,14 @@ import { markAllReadProcedure } from "./routes/notifications/mark-all-read";
 import { registerTokenProcedure } from "./routes/notifications/register-token";
 import { getSettingsProcedure } from "./routes/notifications/get-settings";
 import { updateSettingsProcedure } from "./routes/notifications/update-settings";
+import { requestVerificationProcedure } from "./routes/verification/request";
+import { getVerificationStatusProcedure } from "./routes/verification/status";
+import { addEventSafetyProcedure } from "./routes/safety/add-safety";
+import { checkInProcedure } from "./routes/safety/check-in";
+import { checkOutProcedure } from "./routes/safety/check-out";
+import { joinEventProcedure } from "./routes/attendees/join";
+import { listAttendeesProcedure } from "./routes/attendees/list";
+import { getEventAnalyticsProcedure } from "./routes/analytics/event-analytics";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -82,6 +90,22 @@ export const appRouter = createTRPCRouter({
     registerToken: registerTokenProcedure,
     getSettings: getSettingsProcedure,
     updateSettings: updateSettingsProcedure,
+  }),
+  verification: createTRPCRouter({
+    request: requestVerificationProcedure,
+    status: getVerificationStatusProcedure,
+  }),
+  safety: createTRPCRouter({
+    addSafety: addEventSafetyProcedure,
+    checkIn: checkInProcedure,
+    checkOut: checkOutProcedure,
+  }),
+  attendees: createTRPCRouter({
+    join: joinEventProcedure,
+    list: listAttendeesProcedure,
+  }),
+  analytics: createTRPCRouter({
+    eventAnalytics: getEventAnalyticsProcedure,
   }),
 });
 

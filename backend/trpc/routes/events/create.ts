@@ -9,9 +9,15 @@ const createEventSchema = z.object({
   date: z.date(),
   time: z.string(),
   location: z.string().min(1),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
   imageUrl: z.string().url(),
   capacity: z.number().min(1).optional(),
+  vibes: z.array(z.enum(['chill', 'adventurous', 'romantic', 'social', 'intimate', 'energetic', 'cultural', 'fun'] as const)).default([]),
   isDraft: z.boolean().default(false),
+  isPaid: z.boolean().default(false),
+  price: z.number().min(0).optional(),
+  currency: z.string().default('USD').optional(),
   creatorId: z.string(),
 });
 
@@ -24,7 +30,10 @@ export const createEventProcedure = publicProcedure
       id: eventId,
       ...input,
       spotsAvailable: input.capacity,
+      attendeeIds: [],
       status: input.isDraft ? 'draft' : 'upcoming',
+      views: 0,
+      likes: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

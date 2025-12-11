@@ -50,6 +50,16 @@ export interface SeekerPreferences {
 
 export type EventStatus = 'draft' | 'upcoming' | 'ongoing' | 'completed' | 'cancelled' | 'full';
 
+export type EventVibe = 
+  | 'chill'
+  | 'adventurous'
+  | 'romantic'
+  | 'social'
+  | 'intimate'
+  | 'energetic'
+  | 'cultural'
+  | 'fun';
+
 export interface Event {
   id: string;
   creatorId: string;
@@ -58,12 +68,21 @@ export interface Event {
   date: Date;
   time: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
   category: EventCategory;
+  vibes: EventVibe[];
   imageUrl: string;
   capacity?: number;
   spotsAvailable?: number;
+  attendeeIds: string[];
   status: EventStatus;
   isDraft: boolean;
+  isPaid: boolean;
+  price?: number;
+  currency?: string;
+  views: number;
+  likes: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -108,6 +127,10 @@ export interface UserProfile {
   location: string;
   ageRangeMin?: number;
   ageRangeMax?: number;
+  verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
+  verificationPhoto?: string;
+  premiumTier?: 'free' | 'premium' | 'pro';
+  premiumExpiresAt?: Date;
 }
 
 export interface AuthSession {
@@ -225,4 +248,76 @@ export interface NotificationSettings {
   messageReplies: boolean;
   eventFillingUp: boolean;
   pushEnabled: boolean;
+}
+
+export interface EventSafetyInfo {
+  id: string;
+  eventId: string;
+  userId: string;
+  trustedContacts: TrustedContact[];
+  checkInTime?: Date;
+  checkOutTime?: Date;
+  emergencyAlert?: boolean;
+  createdAt: Date;
+}
+
+export interface TrustedContact {
+  name: string;
+  phone: string;
+  email?: string;
+}
+
+export interface EventAttendee {
+  id: string;
+  eventId: string;
+  userId: string;
+  status: 'interested' | 'attending' | 'checked_in' | 'completed';
+  ticketId?: string;
+  paidAmount?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EventAnalytics {
+  eventId: string;
+  views: number;
+  likes: number;
+  messages: number;
+  attendees: number;
+  revenue?: number;
+  conversionRate: number;
+}
+
+export interface VerificationRequest {
+  id: string;
+  userId: string;
+  photoUrl: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reason?: string;
+  createdAt: Date;
+  reviewedAt?: Date;
+}
+
+export interface Payment {
+  id: string;
+  userId: string;
+  eventId: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  stripePaymentIntentId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Payout {
+  id: string;
+  creatorId: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  stripePayoutId?: string;
+  eventIds: string[];
+  createdAt: Date;
+  completedAt?: Date;
 }

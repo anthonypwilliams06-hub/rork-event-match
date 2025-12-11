@@ -1,4 +1,4 @@
-import { User, UserProfile, Event, FavoriteEvent, Message, Conversation, Rating, BlockedUser, Report, Notification, NotificationSettings } from '@/types';
+import { User, UserProfile, Event, FavoriteEvent, Message, Conversation, Rating, BlockedUser, Report, Notification, NotificationSettings, EventSafetyInfo, EventAttendee, VerificationRequest, Payment, Payout } from '@/types';
 
 interface PasswordResetToken {
   email: string;
@@ -26,6 +26,11 @@ export class InMemoryDB {
   private reports: Map<string, Report> = new Map();
   private notifications: Map<string, Notification> = new Map();
   private notificationSettings: Map<string, NotificationSettings> = new Map();
+  private eventSafety: Map<string, EventSafetyInfo> = new Map();
+  private eventAttendees: Map<string, EventAttendee> = new Map();
+  private verificationRequests: Map<string, VerificationRequest> = new Map();
+  private payments: Map<string, Payment> = new Map();
+  private payouts: Map<string, Payout> = new Map();
 
   createUser(user: User & { passwordHash: string }): User & { passwordHash: string } {
     this.users.set(user.id, user);
@@ -306,6 +311,107 @@ export class InMemoryDB {
   createOrUpdateNotificationSettings(settings: NotificationSettings): NotificationSettings {
     this.notificationSettings.set(settings.userId, settings);
     return settings;
+  }
+
+  createEventSafetyInfo(safetyInfo: EventSafetyInfo): EventSafetyInfo {
+    this.eventSafety.set(safetyInfo.id, safetyInfo);
+    return safetyInfo;
+  }
+
+  getEventSafetyInfo(eventId: string, userId: string): EventSafetyInfo | undefined {
+    return Array.from(this.eventSafety.values()).find(
+      s => s.eventId === eventId && s.userId === userId
+    );
+  }
+
+  updateEventSafetyInfo(id: string, updates: Partial<EventSafetyInfo>): EventSafetyInfo | undefined {
+    const safety = this.eventSafety.get(id);
+    if (!safety) return undefined;
+    const updated = { ...safety, ...updates };
+    this.eventSafety.set(id, updated);
+    return updated;
+  }
+
+  createEventAttendee(attendee: EventAttendee): EventAttendee {
+    this.eventAttendees.set(attendee.id, attendee);
+    return attendee;
+  }
+
+  getEventAttendees(eventId: string): EventAttendee[] {
+    return Array.from(this.eventAttendees.values()).filter(a => a.eventId === eventId);
+  }
+
+  getUserAttendance(userId: string, eventId: string): EventAttendee | undefined {
+    return Array.from(this.eventAttendees.values()).find(
+      a => a.userId === userId && a.eventId === eventId
+    );
+  }
+
+  updateEventAttendee(id: string, updates: Partial<EventAttendee>): EventAttendee | undefined {
+    const attendee = this.eventAttendees.get(id);
+    if (!attendee) return undefined;
+    const updated = { ...attendee, ...updates, updatedAt: new Date() };
+    this.eventAttendees.set(id, updated);
+    return updated;
+  }
+
+  createVerificationRequest(request: VerificationRequest): VerificationRequest {
+    this.verificationRequests.set(request.id, request);
+    return request;
+  }
+
+  getVerificationRequestByUserId(userId: string): VerificationRequest | undefined {
+    return Array.from(this.verificationRequests.values()).find(v => v.userId === userId);
+  }
+
+  updateVerificationRequest(id: string, updates: Partial<VerificationRequest>): VerificationRequest | undefined {
+    const request = this.verificationRequests.get(id);
+    if (!request) return undefined;
+    const updated = { ...request, ...updates };
+    this.verificationRequests.set(id, updated);
+    return updated;
+  }
+
+  createPayment(payment: Payment): Payment {
+    this.payments.set(payment.id, payment);
+    return payment;
+  }
+
+  getPaymentById(id: string): Payment | undefined {
+    return this.payments.get(id);
+  }
+
+  getPaymentsByUserId(userId: string): Payment[] {
+    return Array.from(this.payments.values()).filter(p => p.userId === userId);
+  }
+
+  updatePayment(id: string, updates: Partial<Payment>): Payment | undefined {
+    const payment = this.payments.get(id);
+    if (!payment) return undefined;
+    const updated = { ...payment, ...updates, updatedAt: new Date() };
+    this.payments.set(id, updated);
+    return updated;
+  }
+
+  createPayout(payout: Payout): Payout {
+    this.payouts.set(payout.id, payout);
+    return payout;
+  }
+
+  getPayoutById(id: string): Payout | undefined {
+    return this.payouts.get(id);
+  }
+
+  getPayoutsByCreatorId(creatorId: string): Payout[] {
+    return Array.from(this.payouts.values()).filter(p => p.creatorId === creatorId);
+  }
+
+  updatePayout(id: string, updates: Partial<Payout>): Payout | undefined {
+    const payout = this.payouts.get(id);
+    if (!payout) return undefined;
+    const updated = { ...payout, ...updates };
+    this.payouts.set(id, updated);
+    return updated;
   }
 }
 
