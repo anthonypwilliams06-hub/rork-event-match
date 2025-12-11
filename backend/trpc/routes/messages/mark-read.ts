@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
+import { supabase } from '@/lib/supabase';
 
 export const markReadProcedure = publicProcedure
   .input(
@@ -12,21 +13,21 @@ export const markReadProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Mark message as read');
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    const message = db.getMessageById(input.messageId);
+    const message = await db.getMessageById(input.messageId);
     if (!message) {
       throw new Error('Message not found');
     }
 
-    if (message.receiverId !== session.userId) {
+    if (message.receiverId !== user.id) {
       throw new Error('Unauthorized');
     }
 
-    db.markMessageAsRead(input.messageId);
+    await db.markMessageAsRead(input.messageId);
 
     console.log('Message marked as read');
     return { success: true };

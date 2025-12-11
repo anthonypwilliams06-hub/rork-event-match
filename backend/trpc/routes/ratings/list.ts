@@ -11,25 +11,29 @@ export const listRatingsProcedure = publicProcedure
   .query(async ({ input }) => {
     console.log('List ratings for creator');
 
-    const ratings = db.getRatingsByCreatorId(input.creatorId);
+    const ratings = await db.getRatingsByCreatorId(input.creatorId);
 
-    const ratingsWithUsers = ratings.map(rating => {
-      const reviewer = db.getUserById(rating.reviewerId);
-      const event = db.getEventById(rating.eventId);
+    const ratingsWithUsersPromises = ratings.map(async (rating) => {
+      const reviewer = await db.getUserById(rating.reviewerId);
+      const event = await db.getEventById(rating.eventId);
+      const reviewerProfile = reviewer ? await db.getProfileByUserId(reviewer.id) : null;
       return {
         ...rating,
         reviewer: reviewer ? {
           id: reviewer.id,
           name: reviewer.name,
-          profile: reviewer.profile,
+          profile: reviewerProfile,
         } : undefined,
         event: event ? {
           id: event.id,
           title: event.title,
         } : undefined,
       };
-    }).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    });
 
-    console.log('Ratings found:', ratingsWithUsers.length);
-    return { ratings: ratingsWithUsers };
+    const ratingsWithUsers = await Promise.all(ratingsWithUsersPromises);
+    const sortedRatings = ratingsWithUsers.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    console.log('Ratings found:', sortedRatings.length);
+    return { ratings: sortedRatings };
   });

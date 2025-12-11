@@ -3,6 +3,7 @@ import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
 import { randomBytes } from 'crypto';
 import { notifyNewMessage } from '../../../notifications';
+import { supabase } from '@/lib/supabase';
 
 export const sendMessageProcedure = publicProcedure
   .input(
@@ -15,24 +16,24 @@ export const sendMessageProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Send message');
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    const receiver = db.getUserById(input.receiverId);
+    const receiver = await db.getUserById(input.receiverId);
     if (!receiver) {
       throw new Error('Receiver not found');
     }
 
-    const blocked = db.getBlockedUser(input.receiverId, session.userId);
+    const blocked = await db.getBlockedUser(input.receiverId, user.id);
     if (blocked) {
       throw new Error('You are blocked by this user');
     }
 
-    const message = db.createMessage({
+    const message = await db.createMessage({
       id: randomBytes(16).toString('hex'),
-      senderId: session.userId,
+      senderId: user.id,
       receiverId: input.receiverId,
       content: input.content,
       read: false,
@@ -40,16 +41,16 @@ export const sendMessageProcedure = publicProcedure
     });
 
     const conversationId = randomBytes(16).toString('hex');
-    db.createOrUpdateConversation({
+    await db.createOrUpdateConversation({
       id: conversationId,
-      participantIds: [session.userId, input.receiverId],
+      participantIds: [user.id, input.receiverId],
       lastMessage: message,
       updatedAt: new Date(),
     });
 
-    const sender = db.getUserById(session.userId);
+    const sender = await db.getUserById(user.id);
     if (sender) {
-      notifyNewMessage(input.receiverId, sender.name, message.id, session.userId);
+      notifyNewMessage(input.receiverId, sender.name, message.id, user.id);
     }
 
     console.log('Message sent:', message.id);

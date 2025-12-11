@@ -10,7 +10,7 @@ const deleteEventSchema = z.object({
 export const deleteEventProcedure = publicProcedure
   .input(deleteEventSchema)
   .mutation(async ({ input }) => {
-    const event = db.getEventById(input.id);
+    const event = await db.getEventById(input.id);
     
     if (!event) {
       throw new Error('Event not found');
@@ -20,7 +20,7 @@ export const deleteEventProcedure = publicProcedure
       throw new Error('Unauthorized: You can only delete your own events');
     }
     
-    const deleted = db.deleteEvent(input.id);
+    const deleted = await db.deleteEvent(input.id);
     
     if (!deleted) {
       throw new Error('Failed to delete event');

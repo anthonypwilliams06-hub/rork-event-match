@@ -1,22 +1,23 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '@/backend/db';
+import { supabase } from '@/lib/supabase';
 
 export const getSettingsProcedure = publicProcedure
   .input(z.object({ token: z.string() }))
   .query(async ({ input }) => {
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    console.log('Get notification settings for user:', session.userId);
+    console.log('Get notification settings for user:', user.id);
     
-    let settings = db.getNotificationSettings(session.userId);
+    let settings = await db.getNotificationSettings(user.id);
     
     if (!settings) {
-      settings = db.createOrUpdateNotificationSettings({
-        userId: session.userId,
+      settings = await db.createOrUpdateNotificationSettings({
+        userId: user.id,
         newMessages: true,
         profileLikes: true,
         eventReminders: true,

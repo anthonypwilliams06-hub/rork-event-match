@@ -2,6 +2,7 @@ import { publicProcedure } from "../../create-context";
 import { z } from "zod";
 import { db } from "@/backend/db";
 import { EventWithMatch, MatchScore, UserProfile, Event as AppEvent } from "@/types";
+import { supabase } from '@/lib/supabase';
 
 const listEventsSchema = z.object({
   creatorId: z.string().optional(),
@@ -71,8 +72,8 @@ export const listEventsProcedure = publicProcedure
   .input(listEventsSchema)
   .query(async ({ input }): Promise<AppEvent[] | EventWithMatch[]> => {
     let events = input?.creatorId 
-      ? db.getEventsByCreatorId(input.creatorId)
-      : db.getAllEvents();
+      ? await db.getEventsByCreatorId(input.creatorId)
+      : await db.getAllEvents();
     
     if (!input?.includeDrafts) {
       events = events.filter(e => !e.isDraft);
@@ -114,15 +115,15 @@ export const listEventsProcedure = publicProcedure
       return events.slice(offset, offset + limit);
     }
 
-    const session = db.getSession(input.token);
-    if (!session) {
+    const { data: { user: authUser } } = await supabase.auth.getUser(input.token);
+    if (!authUser) {
       events.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       console.log('Events retrieved (invalid session):', events.length);
       return events;
     }
 
-    const user = db.getUserById(session.userId);
-    const seekerProfile = db.getProfileByUserId(session.userId);
+    const user = await db.getUserById(authUser.id);
+    const seekerProfile = await db.getProfileByUserId(authUser.id);
 
     if (!user || !seekerProfile || seekerProfile.role !== 'seeker') {
       if (input?.sortBy === 'date') {
@@ -137,34 +138,36 @@ export const listEventsProcedure = publicProcedure
       return events.slice(offset, offset + limit);
     }
 
-    const eventsWithMatches: EventWithMatch[] = events
-      .map((event) => {
-        const creator = db.getUserById(event.creatorId);
-        const creatorProfile = db.getProfileByUserId(event.creatorId);
+    const eventsWithMatchesPromises = events.map(async (event) => {
+      const creator = await db.getUserById(event.creatorId);
+      const creatorProfile = await db.getProfileByUserId(event.creatorId);
 
-        if (!creator || !creatorProfile || creatorProfile.role !== 'creator') {
-          return null;
-        }
+      if (!creator || !creatorProfile || creatorProfile.role !== 'creator') {
+        return null;
+      }
 
-        const matchScore = calculateMatchScore(seekerProfile, creatorProfile, creator.age);
+      const matchScore = calculateMatchScore(seekerProfile, creatorProfile, creator.age);
 
-        return {
-          event,
-          creator: {
-            id: creator.id,
-            role: 'creator' as const,
-            name: creator.name,
-            age: creator.age,
-            bio: creatorProfile.bio || '',
-            photoUrl: creatorProfile.photoUrl || '',
-            interests: creatorProfile.interests,
-            personalityTraits: creatorProfile.personalityTraits,
-            relationshipGoal: creatorProfile.relationshipGoal || 'open',
-            location: creatorProfile.location,
-          },
-          matchScore,
-        };
-      })
+      return {
+        event,
+        creator: {
+          id: creator.id,
+          role: 'creator' as const,
+          name: creator.name,
+          age: creator.age,
+          bio: creatorProfile.bio || '',
+          photoUrl: creatorProfile.photoUrl || '',
+          interests: creatorProfile.interests,
+          personalityTraits: creatorProfile.personalityTraits,
+          relationshipGoal: creatorProfile.relationshipGoal || 'open',
+          location: creatorProfile.location,
+        },
+        matchScore,
+      };
+    });
+
+    const eventsWithMatchesResults = await Promise.all(eventsWithMatchesPromises);
+    const eventsWithMatches = eventsWithMatchesResults
       .filter((item): item is EventWithMatch => item !== null)
       .filter((item) => item.matchScore.totalScore >= 60);
 

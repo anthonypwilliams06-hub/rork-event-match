@@ -1,6 +1,7 @@
 import { publicProcedure } from "../../create-context";
 import { z } from "zod";
 import { db } from "@/backend/db";
+import { supabase } from '@/lib/supabase';
 
 const checkOutSchema = z.object({
   token: z.string(),
@@ -10,27 +11,17 @@ const checkOutSchema = z.object({
 export const checkOutProcedure = publicProcedure
   .input(checkOutSchema)
   .mutation(async ({ input }) => {
-    const session = db.getSession(input.token);
-    if (!session) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    if (session.expiresAt < new Date()) {
-      db.deleteSession(input.token);
-      throw new Error('Session expired');
-    }
-
-    const user = db.getUserById(session.userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    const safetyInfo = db.getEventSafetyInfo(input.eventId, user.id);
+    const safetyInfo = await db.getEventSafetyInfo(input.eventId, user.id);
     if (!safetyInfo) {
       throw new Error('No check-in found');
     }
 
-    const updated = db.updateEventSafetyInfo(safetyInfo.id, {
+    const updated = await db.updateEventSafetyInfo(safetyInfo.id, {
       checkOutTime: new Date(),
     });
 

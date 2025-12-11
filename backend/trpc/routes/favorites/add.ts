@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
 import { randomBytes } from 'crypto';
+import { supabase } from '@/lib/supabase';
 
 export const addFavoriteProcedure = publicProcedure
   .input(
@@ -13,24 +14,24 @@ export const addFavoriteProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Add favorite:', input);
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    const event = db.getEventById(input.eventId);
+    const event = await db.getEventById(input.eventId);
     if (!event) {
       throw new Error('Event not found');
     }
 
-    const existing = db.getFavoriteByUserAndEvent(session.userId, input.eventId);
+    const existing = await db.getFavoriteByUserAndEvent(user.id, input.eventId);
     if (existing) {
       return { favorite: existing, message: 'Already favorited' };
     }
 
-    const favorite = db.createFavorite({
+    const favorite = await db.createFavorite({
       id: randomBytes(16).toString('hex'),
-      userId: session.userId,
+      userId: user.id,
       eventId: input.eventId,
       createdAt: new Date(),
     });

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '@/backend/db';
+import { supabase } from '@/lib/supabase';
 
 export const updateSettingsProcedure = publicProcedure
   .input(z.object({
@@ -13,18 +14,18 @@ export const updateSettingsProcedure = publicProcedure
     pushEnabled: z.boolean().optional(),
   }))
   .mutation(async ({ input }) => {
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    console.log('Update notification settings for user:', session.userId, input);
+    console.log('Update notification settings for user:', user.id, input);
     
-    let settings = db.getNotificationSettings(session.userId);
+    let settings = await db.getNotificationSettings(user.id);
     
     if (!settings) {
       settings = {
-        userId: session.userId,
+        userId: user.id,
         newMessages: true,
         profileLikes: true,
         eventReminders: true,
@@ -34,9 +35,10 @@ export const updateSettingsProcedure = publicProcedure
       };
     }
     
-    const updated = db.createOrUpdateNotificationSettings({
+    const updated = await db.createOrUpdateNotificationSettings({
       ...settings,
       ...input,
+      userId: user.id,
     });
     
     return { success: true, settings: updated };

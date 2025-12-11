@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
+import { supabase } from '@/lib/supabase';
 
 export const unblockUserProcedure = publicProcedure
   .input(
@@ -12,17 +13,17 @@ export const unblockUserProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Unblock user');
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    const existing = db.getBlockedUser(session.userId, input.blockedId);
+    const existing = await db.getBlockedUser(user.id, input.blockedId);
     if (!existing) {
       throw new Error('User is not blocked');
     }
 
-    db.deleteBlockedUser(existing.id);
+    await db.deleteBlockedUser(existing.id);
 
     console.log('User unblocked');
     return { success: true };

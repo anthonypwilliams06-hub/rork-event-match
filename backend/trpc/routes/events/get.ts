@@ -9,7 +9,7 @@ const getEventSchema = z.object({
 export const getEventProcedure = publicProcedure
   .input(getEventSchema)
   .query(async ({ input }) => {
-    const event = db.getEventById(input.id);
+    const event = await db.getEventById(input.id);
     
     if (!event) {
       throw new Error('Event not found');

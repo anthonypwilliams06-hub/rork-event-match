@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
+import { supabase } from '@/lib/supabase';
 
 export const listConversationsProcedure = publicProcedure
   .input(
@@ -11,25 +12,28 @@ export const listConversationsProcedure = publicProcedure
   .query(async ({ input }) => {
     console.log('List conversations');
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    const conversations = db.getConversationsByUserId(session.userId);
+    const conversations = await db.getConversationsByUserId(user.id);
 
-    const conversationsWithUsers = conversations.map(conv => {
-      const otherUserId = conv.participantIds.find(id => id !== session.userId);
-      const otherUser = otherUserId ? db.getUserById(otherUserId) : undefined;
+    const conversationsWithUsersPromises = conversations.map(async (conv) => {
+      const otherUserId = conv.participantIds.find(id => id !== user.id);
+      const otherUser = otherUserId ? await db.getUserById(otherUserId) : null;
+      const otherProfile = otherUserId ? await db.getProfileByUserId(otherUserId) : null;
       return {
         ...conv,
         otherUser: otherUser ? {
           id: otherUser.id,
           name: otherUser.name,
-          profile: otherUser.profile,
+          profile: otherProfile,
         } : undefined,
       };
     });
+
+    const conversationsWithUsers = await Promise.all(conversationsWithUsersPromises);
 
     console.log('Conversations found:', conversationsWithUsers.length);
     return { conversations: conversationsWithUsers };

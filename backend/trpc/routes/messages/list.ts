@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
+import { supabase } from '@/lib/supabase';
 
 export const listMessagesProcedure = publicProcedure
   .input(
@@ -12,12 +13,12 @@ export const listMessagesProcedure = publicProcedure
   .query(async ({ input }) => {
     console.log('List messages');
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    const messages = db.getMessagesBetweenUsers(session.userId, input.otherUserId);
+    const messages = await db.getMessagesBetweenUsers(user.id, input.otherUserId);
 
     console.log('Messages found:', messages.length);
     return { messages };

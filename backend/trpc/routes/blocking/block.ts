@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
 import { randomBytes } from 'crypto';
+import { supabase } from '@/lib/supabase';
 
 export const blockUserProcedure = publicProcedure
   .input(
@@ -13,28 +14,28 @@ export const blockUserProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Block user');
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    if (session.userId === input.blockedId) {
+    if (user.id === input.blockedId) {
       throw new Error('Cannot block yourself');
     }
 
-    const blockedUser = db.getUserById(input.blockedId);
+    const blockedUser = await db.getUserById(input.blockedId);
     if (!blockedUser) {
       throw new Error('User not found');
     }
 
-    const existing = db.getBlockedUser(session.userId, input.blockedId);
+    const existing = await db.getBlockedUser(user.id, input.blockedId);
     if (existing) {
       return { success: true, message: 'Already blocked' };
     }
 
-    const block = db.createBlockedUser({
+    const block = await db.createBlockedUser({
       id: randomBytes(16).toString('hex'),
-      blockerId: session.userId,
+      blockerId: user.id,
       blockedId: input.blockedId,
       createdAt: new Date(),
     });

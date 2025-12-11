@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
 import { randomBytes } from 'crypto';
+import { supabase } from '@/lib/supabase';
 
 export const reportUserProcedure = publicProcedure
   .input(
@@ -15,23 +16,23 @@ export const reportUserProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Report user');
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    if (session.userId === input.reportedId) {
+    if (user.id === input.reportedId) {
       throw new Error('Cannot report yourself');
     }
 
-    const reportedUser = db.getUserById(input.reportedId);
+    const reportedUser = await db.getUserById(input.reportedId);
     if (!reportedUser) {
       throw new Error('User not found');
     }
 
-    const report = db.createReport({
+    const report = await db.createReport({
       id: randomBytes(16).toString('hex'),
-      reporterId: session.userId,
+      reporterId: user.id,
       reportedId: input.reportedId,
       reason: input.reason,
       description: input.description,

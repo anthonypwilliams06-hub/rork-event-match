@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
 import { randomBytes } from 'crypto';
+import { supabase } from '@/lib/supabase';
 
 export const createRatingProcedure = publicProcedure
   .input(
@@ -15,33 +16,33 @@ export const createRatingProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Create rating');
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    const event = db.getEventById(input.eventId);
+    const event = await db.getEventById(input.eventId);
     if (!event) {
       throw new Error('Event not found');
     }
 
-    if (event.creatorId === session.userId) {
+    if (event.creatorId === user.id) {
       throw new Error('Cannot rate your own event');
     }
 
-    const existingRating = db.getRatingByEventAndReviewer(input.eventId, session.userId);
+    const existingRating = await db.getRatingByEventAndReviewer(input.eventId, user.id);
     if (existingRating) {
-      const updated = db.updateRating(existingRating.id, {
+      const updated = await db.updateRating(existingRating.id, {
         rating: input.rating,
         review: input.review,
       });
       return { rating: updated, message: 'Rating updated' };
     }
 
-    const rating = db.createRating({
+    const rating = await db.createRating({
       id: randomBytes(16).toString('hex'),
       eventId: input.eventId,
-      reviewerId: session.userId,
+      reviewerId: user.id,
       creatorId: event.creatorId,
       rating: input.rating,
       review: input.review,

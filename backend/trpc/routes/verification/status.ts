@@ -1,6 +1,7 @@
 import { publicProcedure } from "../../create-context";
 import { z } from "zod";
 import { db } from "@/backend/db";
+import { supabase } from '@/lib/supabase';
 
 const getVerificationStatusSchema = z.object({
   token: z.string().optional(),
@@ -13,9 +14,9 @@ export const getVerificationStatusProcedure = publicProcedure
     let userId = input.userId;
 
     if (input.token) {
-      const session = db.getSession(input.token);
-      if (session && session.expiresAt >= new Date()) {
-        userId = session.userId;
+      const { data: { user }, error } = await supabase.auth.getUser(input.token);
+      if (!error && user) {
+        userId = user.id;
       }
     }
     
@@ -23,8 +24,8 @@ export const getVerificationStatusProcedure = publicProcedure
       throw new Error('User ID required');
     }
 
-    const profile = db.getProfileByUserId(userId);
-    const request = db.getVerificationRequestByUserId(userId);
+    const profile = await db.getProfileByUserId(userId);
+    const request = await db.getVerificationRequestByUserId(userId);
 
     return {
       status: profile?.verificationStatus || 'unverified',

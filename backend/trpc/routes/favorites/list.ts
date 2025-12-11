@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
+import { supabase } from '@/lib/supabase';
 
 export const listFavoritesProcedure = publicProcedure
   .input(
@@ -11,15 +12,15 @@ export const listFavoritesProcedure = publicProcedure
   .query(async ({ input }) => {
     console.log('List favorites');
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    const favorites = db.getFavoritesByUserId(session.userId);
-    const events = favorites
-      .map(fav => db.getEventById(fav.eventId))
-      .filter(e => e !== undefined);
+    const favorites = await db.getFavoritesByUserId(user.id);
+    const eventsPromises = favorites.map(fav => db.getEventById(fav.eventId));
+    const eventsResults = await Promise.all(eventsPromises);
+    const events = eventsResults.filter(e => e !== null);
 
     console.log('Favorites found:', events.length);
     return { favorites: events };

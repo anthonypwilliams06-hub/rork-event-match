@@ -207,7 +207,7 @@ export default function ChatScreen() {
     );
   }
 
-  const messages = messagesQuery.data?.messages || [];
+  const messages = Array.isArray(messagesQuery.data?.messages) ? messagesQuery.data.messages : [];
 
   return (
     <SafeAreaView style={styles.container}>

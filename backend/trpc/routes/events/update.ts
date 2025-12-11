@@ -22,7 +22,7 @@ export const updateEventProcedure = publicProcedure
   .mutation(async ({ input }) => {
     const { id, ...updates } = input;
     
-    const event = db.updateEvent(id, updates);
+    const event = await db.updateEvent(id, updates);
     
     if (!event) {
       throw new Error('Event not found');

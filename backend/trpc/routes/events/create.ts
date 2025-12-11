@@ -26,7 +26,7 @@ export const createEventProcedure = publicProcedure
   .mutation(async ({ input }) => {
     const eventId = `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    const event = db.createEvent({
+    const event = await db.createEvent({
       id: eventId,
       ...input,
       spotsAvailable: input.capacity,

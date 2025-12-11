@@ -1,6 +1,7 @@
 import { publicProcedure } from "../../create-context";
 import { z } from "zod";
 import { db } from "@/backend/db";
+import { supabase } from '@/lib/supabase';
 
 const addEventSafetySchema = z.object({
   token: z.string(),
@@ -15,29 +16,19 @@ const addEventSafetySchema = z.object({
 export const addEventSafetyProcedure = publicProcedure
   .input(addEventSafetySchema)
   .mutation(async ({ input }) => {
-    const session = db.getSession(input.token);
-    if (!session) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    if (session.expiresAt < new Date()) {
-      db.deleteSession(input.token);
-      throw new Error('Session expired');
-    }
-
-    const user = db.getUserById(session.userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    const event = db.getEventById(input.eventId);
+    const event = await db.getEventById(input.eventId);
     if (!event) {
       throw new Error('Event not found');
     }
 
     const safetyId = `safety-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    const safetyInfo = db.createEventSafetyInfo({
+    const safetyInfo = await db.createEventSafetyInfo({
       id: safetyId,
       eventId: input.eventId,
       userId: user.id,

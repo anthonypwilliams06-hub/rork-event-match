@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
+import { supabase } from '@/lib/supabase';
 
 export const removeFavoriteProcedure = publicProcedure
   .input(
@@ -12,17 +13,17 @@ export const removeFavoriteProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Remove favorite:', input);
 
-    const session = db.getSession(input.token);
-    if (!session || session.expiresAt < new Date()) {
+    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    if (error || !user) {
       throw new Error('Invalid session');
     }
 
-    const favorite = db.getFavoriteByUserAndEvent(session.userId, input.eventId);
+    const favorite = await db.getFavoriteByUserAndEvent(user.id, input.eventId);
     if (!favorite) {
       throw new Error('Favorite not found');
     }
 
-    db.deleteFavorite(favorite.id);
+    await db.deleteFavorite(favorite.id);
 
     console.log('Favorite removed');
     return { success: true };

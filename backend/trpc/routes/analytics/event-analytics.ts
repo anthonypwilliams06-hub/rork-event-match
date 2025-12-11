@@ -1,6 +1,7 @@
 import { publicProcedure } from "../../create-context";
 import { z } from "zod";
 import { db } from "@/backend/db";
+import { supabase } from '@/lib/supabase';
 
 const getAnalyticsSchema = z.object({
   token: z.string(),
@@ -10,7 +11,12 @@ const getAnalyticsSchema = z.object({
 export const getEventAnalyticsProcedure = publicProcedure
   .input(getAnalyticsSchema)
   .query(async ({ input }) => {
-    const user = await db.getUserById(input.token);
+    const { data: { user: authUser }, error } = await supabase.auth.getUser(input.token);
+    if (error || !authUser) {
+      throw new Error('Invalid session');
+    }
+
+    const user = await db.getUserById(authUser.id);
     if (!user) {
       throw new Error('User not found');
     }
@@ -28,8 +34,8 @@ export const getEventAnalyticsProcedure = publicProcedure
     const messages = await db.getMessagesBetweenUsers(user.id, event.creatorId);
 
     const revenue = attendees
-      .filter((a: any) => a.paidAmount)
-      .reduce((sum: number, a: any) => sum + (a.paidAmount || 0), 0);
+      .filter((a) => a.paidAmount)
+      .reduce((sum, a) => sum + (a.paidAmount || 0), 0);
 
     const conversionRate = event.views > 0 
       ? (attendees.length / event.views) * 100 

@@ -11,8 +11,8 @@ export const getCreatorStatsProcedure = publicProcedure
   .query(async ({ input }) => {
     console.log('Get creator stats');
 
-    const ratings = db.getRatingsByCreatorId(input.creatorId);
-    const events = db.getEventsByCreatorId(input.creatorId);
+    const ratings = await db.getRatingsByCreatorId(input.creatorId);
+    const events = await db.getEventsByCreatorId(input.creatorId);
 
     const averageRating = ratings.length > 0
       ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
