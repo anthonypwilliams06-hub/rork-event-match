@@ -15,36 +15,30 @@ if (!isSupabaseConfigured) {
   console.warn('Supabase URL or Anon Key is missing. Check your environment variables.');
 }
 
+function isLocalStorageSafe(): boolean {
+  if (Platform.OS !== 'web') {
+    return false;
+  }
+  
+  try {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    const storage = window.localStorage;
+    if (!storage) {
+      return false;
+    }
+    const testKey = '__storage_test__';
+    storage.setItem(testKey, testKey);
+    storage.removeItem(testKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 class SupabaseStorage {
   private memoryStorage: Map<string, string> = new Map();
-  private localStorageAvailable: boolean | null = null;
-
-  private checkLocalStorage(): boolean {
-    if (this.localStorageAvailable !== null) {
-      return this.localStorageAvailable;
-    }
-    
-    if (Platform.OS !== 'web') {
-      this.localStorageAvailable = false;
-      return false;
-    }
-    
-    try {
-      if (typeof window === 'undefined' || !window.localStorage) {
-        this.localStorageAvailable = false;
-        return false;
-      }
-      const testKey = '__supabase_storage_test__';
-      window.localStorage.setItem(testKey, testKey);
-      window.localStorage.removeItem(testKey);
-      this.localStorageAvailable = true;
-      return true;
-    } catch {
-      console.log('[Supabase Storage] localStorage not available, using memory storage');
-      this.localStorageAvailable = false;
-      return false;
-    }
-  }
 
   async getItem(key: string): Promise<string | null> {
     try {
@@ -53,8 +47,12 @@ class SupabaseStorage {
         return await AsyncStorage.getItem(key);
       }
       
-      if (this.checkLocalStorage()) {
-        return window.localStorage.getItem(key);
+      if (isLocalStorageSafe()) {
+        try {
+          return window.localStorage.getItem(key);
+        } catch {
+          return this.memoryStorage.get(key) || null;
+        }
       }
       
       return this.memoryStorage.get(key) || null;
@@ -74,8 +72,12 @@ class SupabaseStorage {
         return;
       }
       
-      if (this.checkLocalStorage()) {
-        window.localStorage.setItem(key, value);
+      if (isLocalStorageSafe()) {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch {
+          // Fall through to memory storage
+        }
       }
     } catch (error) {
       console.warn(`[Supabase Storage] Error setting ${key}:`, error);
@@ -92,8 +94,12 @@ class SupabaseStorage {
         return;
       }
       
-      if (this.checkLocalStorage()) {
-        window.localStorage.removeItem(key);
+      if (isLocalStorageSafe()) {
+        try {
+          window.localStorage.removeItem(key);
+        } catch {
+          // Fall through
+        }
       }
     } catch (error) {
       console.warn(`[Supabase Storage] Error removing ${key}:`, error);
@@ -111,21 +117,45 @@ function getSupabaseClient(): SupabaseClient {
   }
   
   if (!supabaseInstance) {
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false,
-        storage: supabaseStorage,
-      },
-    });
+    try {
+      supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: false,
+          storage: supabaseStorage,
+          flowType: 'implicit',
+        },
+      });
+    } catch (error) {
+      console.error('[Supabase] Error creating client:', error);
+      supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUrl: false,
+          storage: supabaseStorage,
+        },
+      });
+    }
   }
   
   return supabaseInstance;
 }
 
-export const supabase = isSupabaseConfigured 
-  ? getSupabaseClient() 
-  : (null as unknown as SupabaseClient);
+function initSupabase(): SupabaseClient | null {
+  if (!isSupabaseConfigured) {
+    return null;
+  }
+  
+  try {
+    return getSupabaseClient();
+  } catch (error) {
+    console.error('[Supabase] Failed to initialize:', error);
+    return null;
+  }
+}
+
+export const supabase = initSupabase() as SupabaseClient;
 
 export { isSupabaseConfigured };

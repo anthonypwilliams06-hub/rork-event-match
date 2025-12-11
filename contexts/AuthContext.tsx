@@ -12,48 +12,62 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !supabase) {
       console.warn('[Auth] Supabase not configured, skipping auth initialization');
       setIsLoading(false);
       return;
     }
 
-    loadSession();
+    let authListener: { subscription: { unsubscribe: () => void } } | null = null;
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        console.log('Auth state changed:', _event, session?.user?.id);
-        setSession(session);
-        
-        if (session?.user) {
-          const userProfile = await trpcClient.profile.get.query({
-            userId: session.user.id,
-          }).catch(() => null);
-          
-          setUser({
-            id: session.user.id,
-            email: session.user.email || '',
-            name: session.user.user_metadata?.name || '',
-            dateOfBirth: new Date(),
-            age: 18,
-            createdAt: new Date(session.user.created_at),
-            profile: userProfile ?? undefined,
-          });
-          setIsAuthenticated(true);
-        } else {
-          setUser(null);
-          setIsAuthenticated(false);
-        }
+    const setupAuth = async () => {
+      try {
+        await loadSession();
+
+        const { data } = supabase.auth.onAuthStateChange(
+          async (_event, session) => {
+            console.log('Auth state changed:', _event, session?.user?.id);
+            setSession(session);
+            
+            if (session?.user) {
+              const userProfile = await trpcClient.profile.get.query({
+                userId: session.user.id,
+              }).catch(() => null);
+              
+              setUser({
+                id: session.user.id,
+                email: session.user.email || '',
+                name: session.user.user_metadata?.name || '',
+                dateOfBirth: new Date(),
+                age: 18,
+                createdAt: new Date(session.user.created_at),
+                profile: userProfile ?? undefined,
+              });
+              setIsAuthenticated(true);
+            } else {
+              setUser(null);
+              setIsAuthenticated(false);
+            }
+          }
+        );
+        authListener = data;
+      } catch (error) {
+        console.error('[Auth] Error setting up auth:', error);
+        setIsLoading(false);
       }
-    );
+    };
+
+    setupAuth();
 
     return () => {
-      authListener.subscription.unsubscribe();
+      if (authListener) {
+        authListener.subscription.unsubscribe();
+      }
     };
   }, []);
 
   const loadSession = async () => {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !supabase) {
       setIsLoading(false);
       return;
     }
@@ -64,6 +78,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       if (error) {
         console.error('Error loading session:', error.message);
+        setIsLoading(false);
         return;
       }
 
@@ -146,7 +161,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const logout = async () => {
     try {
       await trpcClient.auth.logout.mutate({ token: '' });
-      if (isSupabaseConfigured) {
+      if (isSupabaseConfigured && supabase) {
         await supabase.auth.signOut();
       }
       

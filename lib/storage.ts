@@ -4,18 +4,42 @@ import { Platform } from 'react-native';
 class SafeStorage {
   private memoryStorage: Map<string, string> = new Map();
   private isAvailable: boolean | null = null;
+  private checkInProgress: Promise<boolean> | null = null;
 
   private async checkAvailability(): Promise<boolean> {
     if (this.isAvailable !== null) {
       return this.isAvailable;
     }
 
+    if (this.checkInProgress) {
+      return this.checkInProgress;
+    }
+
+    this.checkInProgress = this.performCheck();
+    return this.checkInProgress;
+  }
+
+  private async performCheck(): Promise<boolean> {
     if (Platform.OS !== 'web') {
       this.isAvailable = true;
       return true;
     }
 
     try {
+      if (typeof window === 'undefined') {
+        this.isAvailable = false;
+        return false;
+      }
+      
+      try {
+        const testKey = '__storage_test__';
+        window.localStorage.setItem(testKey, testKey);
+        window.localStorage.removeItem(testKey);
+      } catch {
+        this.isAvailable = false;
+        return false;
+      }
+      
       await AsyncStorage.setItem('__storage_test__', 'test');
       await AsyncStorage.removeItem('__storage_test__');
       this.isAvailable = true;
