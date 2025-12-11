@@ -21,12 +21,19 @@ function isLocalStorageSafe(): boolean {
   }
   
   try {
-    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    if (typeof window === 'undefined') {
       return false;
     }
+    
+    // Access localStorage through window to avoid direct reference errors
+    const storage = window.localStorage;
+    if (!storage) {
+      return false;
+    }
+    
     const testKey = '__supabase_storage_test__';
-    localStorage.setItem(testKey, testKey);
-    localStorage.removeItem(testKey);
+    storage.setItem(testKey, testKey);
+    storage.removeItem(testKey);
     return true;
   } catch {
     return false;
@@ -54,7 +61,7 @@ class SupabaseStorage {
       
       if (this.checkLocalStorage()) {
         try {
-          return localStorage.getItem(key);
+          return window.localStorage.getItem(key);
         } catch {
           return this.memoryStorage.get(key) || null;
         }
@@ -78,7 +85,7 @@ class SupabaseStorage {
       
       if (this.checkLocalStorage()) {
         try {
-          localStorage.setItem(key, value);
+          window.localStorage.setItem(key, value);
         } catch {
           // Memory storage already set
         }
@@ -100,7 +107,7 @@ class SupabaseStorage {
       
       if (this.checkLocalStorage()) {
         try {
-          localStorage.removeItem(key);
+          window.localStorage.removeItem(key);
         } catch {
           // Already removed from memory
         }

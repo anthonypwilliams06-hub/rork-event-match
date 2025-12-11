@@ -26,15 +26,22 @@ class SafeStorage {
     }
 
     try {
-      if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      if (typeof window === 'undefined') {
+        this.isAvailable = false;
+        return false;
+      }
+      
+      // Access localStorage through window to avoid direct reference errors
+      const storage = window.localStorage;
+      if (!storage) {
         this.isAvailable = false;
         return false;
       }
       
       try {
         const testKey = '__safe_storage_test__';
-        localStorage.setItem(testKey, testKey);
-        localStorage.removeItem(testKey);
+        storage.setItem(testKey, testKey);
+        storage.removeItem(testKey);
       } catch {
         this.isAvailable = false;
         return false;
