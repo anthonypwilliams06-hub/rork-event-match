@@ -20,10 +20,7 @@ class SafeStorage {
       await AsyncStorage.removeItem('__storage_test__');
       this.isAvailable = true;
       return true;
-    } catch (error) {
-      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure'))) {
-        console.warn('[Storage] Running in insecure context. Using in-memory storage fallback.');
-      }
+    } catch {
       this.isAvailable = false;
       return false;
     }
