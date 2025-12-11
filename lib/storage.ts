@@ -26,29 +26,18 @@ class SafeStorage {
     }
 
     try {
-      if (typeof window === 'undefined') {
+      if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
         this.isAvailable = false;
         return false;
       }
       
-      // Access localStorage through window to avoid direct reference errors
-      const storage = window.localStorage;
-      if (!storage) {
-        this.isAvailable = false;
-        return false;
-      }
+      const testKey = '__safe_storage_test__';
+      localStorage.setItem(testKey, testKey);
+      const result = localStorage.getItem(testKey);
+      localStorage.removeItem(testKey);
       
-      try {
-        const testKey = '__safe_storage_test__';
-        storage.setItem(testKey, testKey);
-        storage.removeItem(testKey);
-      } catch {
-        this.isAvailable = false;
-        return false;
-      }
-      
-      this.isAvailable = true;
-      return true;
+      this.isAvailable = result === testKey;
+      return this.isAvailable;
     } catch {
       this.isAvailable = false;
       return false;
