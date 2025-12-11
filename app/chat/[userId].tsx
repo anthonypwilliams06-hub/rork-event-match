@@ -46,7 +46,7 @@ export default function ChatScreen() {
   const markReadMutation = trpc.messages.markRead.useMutation();
 
   useEffect(() => {
-    if (messagesQuery.data?.messages) {
+    if (messagesQuery.data?.messages && Array.isArray(messagesQuery.data.messages)) {
       const unreadMessages = messagesQuery.data.messages.filter(
         (msg: Message) => !msg.read && msg.receiverId === user?.id
       );

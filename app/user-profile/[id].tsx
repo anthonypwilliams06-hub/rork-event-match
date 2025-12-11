@@ -311,7 +311,7 @@ export default function UserProfileScreen() {
         {isCreator && ratingsQuery.data?.ratings && ratingsQuery.data.ratings.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recent Reviews</Text>
-            {ratingsQuery.data.ratings.slice(0, 5).map((rating) => (
+            {ratingsQuery.data.ratings.slice(0, 5).map((rating: any) => (
               <View key={rating.id} style={styles.reviewCard}>
                 <View style={styles.reviewHeader}>
                   <Text style={styles.reviewerName}>

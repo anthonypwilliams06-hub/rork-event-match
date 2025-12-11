@@ -10,21 +10,12 @@ const getAnalyticsSchema = z.object({
 export const getEventAnalyticsProcedure = publicProcedure
   .input(getAnalyticsSchema)
   .query(async ({ input }) => {
-    const session = db.getSession(input.token);
-    if (!session) {
-      throw new Error('Invalid session');
-    }
-
-    if (session.expiresAt < new Date()) {
-      throw new Error('Session expired');
-    }
-
-    const user = db.getUserById(session.userId);
+    const user = await db.getUserById(input.token);
     if (!user) {
       throw new Error('User not found');
     }
 
-    const event = db.getEventById(input.eventId);
+    const event = await db.getEventById(input.eventId);
     if (!event) {
       throw new Error('Event not found');
     }
@@ -33,12 +24,12 @@ export const getEventAnalyticsProcedure = publicProcedure
       throw new Error('Not authorized to view analytics');
     }
 
-    const attendees = db.getEventAttendees(input.eventId);
-    const messages = db.getMessagesBetweenUsers(user.id, event.creatorId);
+    const attendees = await db.getEventAttendees(input.eventId);
+    const messages = await db.getMessagesBetweenUsers(user.id, event.creatorId);
 
     const revenue = attendees
-      .filter(a => a.paidAmount)
-      .reduce((sum, a) => sum + (a.paidAmount || 0), 0);
+      .filter((a: any) => a.paidAmount)
+      .reduce((sum: number, a: any) => sum + (a.paidAmount || 0), 0);
 
     const conversionRate = event.views > 0 
       ? (attendees.length / event.views) * 100 

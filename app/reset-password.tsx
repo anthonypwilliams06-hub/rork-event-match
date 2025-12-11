@@ -46,12 +46,8 @@ export default function ResetPasswordScreen() {
 
     setIsLoading(true);
     try {
-      const result = await requestPasswordReset(email);
+      await requestPasswordReset(email);
       console.log('Reset request successful');
-      
-      if (result.token) {
-        setResetToken(result.token);
-      }
       
       setStep('confirm');
       setErrors({});
