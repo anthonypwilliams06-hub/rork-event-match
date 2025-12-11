@@ -21,16 +21,12 @@ function isLocalStorageSafe(): boolean {
   }
   
   try {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
       return false;
     }
-    const storage = window.localStorage;
-    if (!storage) {
-      return false;
-    }
-    const testKey = '__storage_test__';
-    storage.setItem(testKey, testKey);
-    storage.removeItem(testKey);
+    const testKey = '__supabase_storage_test__';
+    localStorage.setItem(testKey, testKey);
+    localStorage.removeItem(testKey);
     return true;
   } catch {
     return false;
@@ -39,6 +35,15 @@ function isLocalStorageSafe(): boolean {
 
 class SupabaseStorage {
   private memoryStorage: Map<string, string> = new Map();
+  private localStorageSafe: boolean | null = null;
+
+  private checkLocalStorage(): boolean {
+    if (this.localStorageSafe !== null) {
+      return this.localStorageSafe;
+    }
+    this.localStorageSafe = isLocalStorageSafe();
+    return this.localStorageSafe;
+  }
 
   async getItem(key: string): Promise<string | null> {
     try {
@@ -47,17 +52,16 @@ class SupabaseStorage {
         return await AsyncStorage.getItem(key);
       }
       
-      if (isLocalStorageSafe()) {
+      if (this.checkLocalStorage()) {
         try {
-          return window.localStorage.getItem(key);
+          return localStorage.getItem(key);
         } catch {
           return this.memoryStorage.get(key) || null;
         }
       }
       
       return this.memoryStorage.get(key) || null;
-    } catch (error) {
-      console.warn(`[Supabase Storage] Error getting ${key}:`, error);
+    } catch {
       return this.memoryStorage.get(key) || null;
     }
   }
@@ -72,15 +76,15 @@ class SupabaseStorage {
         return;
       }
       
-      if (isLocalStorageSafe()) {
+      if (this.checkLocalStorage()) {
         try {
-          window.localStorage.setItem(key, value);
+          localStorage.setItem(key, value);
         } catch {
-          // Fall through to memory storage
+          // Memory storage already set
         }
       }
-    } catch (error) {
-      console.warn(`[Supabase Storage] Error setting ${key}:`, error);
+    } catch {
+      // Memory storage already set
     }
   }
 
@@ -94,15 +98,15 @@ class SupabaseStorage {
         return;
       }
       
-      if (isLocalStorageSafe()) {
+      if (this.checkLocalStorage()) {
         try {
-          window.localStorage.removeItem(key);
+          localStorage.removeItem(key);
         } catch {
-          // Fall through
+          // Already removed from memory
         }
       }
-    } catch (error) {
-      console.warn(`[Supabase Storage] Error removing ${key}:`, error);
+    } catch {
+      // Already removed from memory
     }
   }
 }
@@ -117,27 +121,14 @@ function getSupabaseClient(): SupabaseClient {
   }
   
   if (!supabaseInstance) {
-    try {
-      supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          autoRefreshToken: true,
-          persistSession: true,
-          detectSessionInUrl: false,
-          storage: supabaseStorage,
-          flowType: 'implicit',
-        },
-      });
-    } catch (error) {
-      console.error('[Supabase] Error creating client:', error);
-      supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-          detectSessionInUrl: false,
-          storage: supabaseStorage,
-        },
-      });
-    }
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: Platform.OS !== 'web',
+        persistSession: Platform.OS !== 'web',
+        detectSessionInUrl: false,
+        storage: supabaseStorage,
+      },
+    });
   }
   
   return supabaseInstance;
