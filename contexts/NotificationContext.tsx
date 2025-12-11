@@ -2,7 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from '@/lib/storage';
 import { useAuth } from './AuthContext';
 import { trpc } from '@/lib/trpc';
 import { Notification, NotificationSettings } from '@/types';
@@ -48,7 +48,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
 
   const loadSettings = useCallback(async () => {
     try {
-      const stored = await AsyncStorage.getItem(SETTINGS_KEY);
+      const stored = await storage.getItem(SETTINGS_KEY);
       if (stored && user) {
         const parsed = JSON.parse(stored);
         setSettings({ ...parsed, userId: user.id });
@@ -56,13 +56,9 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         setSettings(prev => ({ ...prev, userId: user.id }));
       }
     } catch (error) {
-      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure') || error.message.includes('operation is insecure'))) {
-        console.warn('[Notifications] Storage unavailable in insecure context. Using default settings.');
-        if (user) {
-          setSettings(prev => ({ ...prev, userId: user.id }));
-        }
-      } else {
-        console.warn('[Notifications] Error loading settings:', error);
+      console.warn('[Notifications] Error loading settings:', error);
+      if (user) {
+        setSettings(prev => ({ ...prev, userId: user.id }));
       }
     }
   }, [user]);
@@ -106,13 +102,9 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     setSettings(newSettings);
     
     try {
-      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
+      await storage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
     } catch (error) {
-      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure') || error.message.includes('operation is insecure'))) {
-        console.warn('[Notifications] Storage unavailable in insecure context. Settings active but will not persist.');
-      } else {
-        console.warn('[Notifications] Error saving settings:', error);
-      }
+      console.warn('[Notifications] Error saving settings:', error);
     }
   };
 

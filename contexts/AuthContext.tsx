@@ -1,6 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from '@/lib/storage';
 import { User, AuthSession } from '@/types';
 import { trpcClient } from '@/lib/trpc';
 
@@ -21,8 +21,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const loadSession = async () => {
     try {
       console.log('Loading session from storage...');
-      const storedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-      const storedSession = await AsyncStorage.getItem(AUTH_SESSION_KEY);
+      const storedToken = await storage.getItem(AUTH_TOKEN_KEY);
+      const storedSession = await storage.getItem(AUTH_SESSION_KEY);
 
       if (storedToken && storedSession) {
         console.log('Session found in storage');
@@ -41,11 +41,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         console.log('No session found in storage');
       }
     } catch (error) {
-      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure') || error.message.includes('operation is insecure'))) {
-        console.warn('[Auth] Storage unavailable in insecure context. Using memory-only session.');
-      } else {
-        console.warn('[Auth] Could not load session from storage:', error instanceof Error ? error.message : 'Unknown error');
-      }
+      console.warn('[Auth] Could not load session from storage:', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsLoading(false);
     }
@@ -58,15 +54,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     
     try {
       console.log('Saving session to storage for user:', session.user.email);
-      await AsyncStorage.setItem(AUTH_TOKEN_KEY, session.token);
-      await AsyncStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      await storage.setItem(AUTH_TOKEN_KEY, session.token);
+      await storage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
       console.log('Session saved successfully');
     } catch (error) {
-      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure') || error.message.includes('operation is insecure'))) {
-        console.warn('[Auth] Storage unavailable in insecure context. Session active but will not persist.');
-      } else {
-        console.warn('[Auth] Could not persist session to storage:', error instanceof Error ? error.message : 'Unknown error');
-      }
+      console.warn('[Auth] Could not persist session to storage:', error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
@@ -76,14 +68,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     setIsAuthenticated(false);
     
     try {
-      await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
-      await AsyncStorage.removeItem(AUTH_SESSION_KEY);
+      await storage.removeItem(AUTH_TOKEN_KEY);
+      await storage.removeItem(AUTH_SESSION_KEY);
     } catch (error) {
-      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure') || error.message.includes('operation is insecure'))) {
-        console.warn('[Auth] Storage unavailable in insecure context.');
-      } else {
-        console.warn('[Auth] Could not clear session from storage:', error instanceof Error ? error.message : 'Unknown error');
-      }
+      console.warn('[Auth] Could not clear session from storage:', error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
