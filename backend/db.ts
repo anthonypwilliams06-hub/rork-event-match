@@ -1,23 +1,41 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { User, UserProfile, Event, FavoriteEvent, Message, Conversation, Rating, BlockedUser, Report, Notification, NotificationSettings, EventSafetyInfo, EventAttendee, VerificationRequest, Payment, Payout } from '@/types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-if (!supabaseUrl || !supabaseServiceKey) {
+const isBackendConfigured = Boolean(supabaseUrl && supabaseServiceKey);
+
+if (!isBackendConfigured) {
   console.warn('⚠️  Supabase URL or Service Role Key is missing. Backend will not function properly.');
 }
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+let supabaseAdmin: SupabaseClient | null = null;
+
+function getSupabaseAdmin(): SupabaseClient {
+  if (!isBackendConfigured) {
+    throw new Error('Supabase backend is not configured. Please set EXPO_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.');
+  }
+  
+  if (!supabaseAdmin) {
+    supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  }
+  
+  return supabaseAdmin;
+}
 
 export class SupabaseDB {
+  private getClient(): SupabaseClient {
+    return getSupabaseAdmin();
+  }
+
   async createUser(user: Omit<User, 'createdAt'> & { passwordHash?: string }): Promise<User> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('users')
       .insert({
         id: user.id,
@@ -35,7 +53,7 @@ export class SupabaseDB {
   }
 
   async getUserById(id: string): Promise<User | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('users')
       .select('*')
       .eq('id', id)
@@ -49,7 +67,7 @@ export class SupabaseDB {
   }
 
   async getUserByEmail(email: string): Promise<User | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('users')
       .select('*')
       .eq('email', email)
@@ -69,7 +87,7 @@ export class SupabaseDB {
     if (updates.pushToken) dbUpdates.push_token = updates.pushToken;
     if (updates.dateOfBirth) dbUpdates.date_of_birth = updates.dateOfBirth;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('users')
       .update(dbUpdates)
       .eq('id', id)
@@ -81,7 +99,7 @@ export class SupabaseDB {
   }
 
   async createProfile(profile: UserProfile): Promise<UserProfile> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('profiles')
       .insert({
         user_id: profile.userId,
@@ -107,7 +125,7 @@ export class SupabaseDB {
   }
 
   async getProfileByUserId(userId: string): Promise<UserProfile | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
@@ -136,7 +154,7 @@ export class SupabaseDB {
     if (updates.premiumTier !== undefined) dbUpdates.premium_tier = updates.premiumTier;
     if (updates.premiumExpiresAt !== undefined) dbUpdates.premium_expires_at = updates.premiumExpiresAt;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('profiles')
       .update(dbUpdates)
       .eq('user_id', userId)
@@ -148,7 +166,7 @@ export class SupabaseDB {
   }
 
   async createEvent(event: Event): Promise<Event> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('events')
       .insert({
         id: event.id,
@@ -182,7 +200,7 @@ export class SupabaseDB {
   }
 
   async getEventById(id: string): Promise<Event | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('events')
       .select('*')
       .eq('id', id)
@@ -196,7 +214,7 @@ export class SupabaseDB {
   }
 
   async getEventsByCreatorId(creatorId: string): Promise<Event[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('events')
       .select('*')
       .eq('creator_id', creatorId)
@@ -207,7 +225,7 @@ export class SupabaseDB {
   }
 
   async getAllEvents(): Promise<Event[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('events')
       .select('*')
       .order('created_at', { ascending: false });
@@ -239,7 +257,7 @@ export class SupabaseDB {
     if (updates.views !== undefined) dbUpdates.views = updates.views;
     if (updates.likes !== undefined) dbUpdates.likes = updates.likes;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('events')
       .update(dbUpdates)
       .eq('id', id)
@@ -251,7 +269,7 @@ export class SupabaseDB {
   }
 
   async deleteEvent(id: string): Promise<boolean> {
-    const { error } = await supabaseAdmin
+    const { error } = await this.getClient()
       .from('events')
       .delete()
       .eq('id', id);
@@ -261,7 +279,7 @@ export class SupabaseDB {
   }
 
   async createFavorite(favorite: FavoriteEvent): Promise<FavoriteEvent> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('favorites')
       .insert({
         id: favorite.id,
@@ -276,7 +294,7 @@ export class SupabaseDB {
   }
 
   async getFavoriteById(id: string): Promise<FavoriteEvent | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('favorites')
       .select('*')
       .eq('id', id)
@@ -290,7 +308,7 @@ export class SupabaseDB {
   }
 
   async getFavoriteByUserAndEvent(userId: string, eventId: string): Promise<FavoriteEvent | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('favorites')
       .select('*')
       .eq('user_id', userId)
@@ -305,7 +323,7 @@ export class SupabaseDB {
   }
 
   async getFavoritesByUserId(userId: string): Promise<FavoriteEvent[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('favorites')
       .select('*')
       .eq('user_id', userId)
@@ -316,7 +334,7 @@ export class SupabaseDB {
   }
 
   async deleteFavorite(id: string): Promise<boolean> {
-    const { error } = await supabaseAdmin
+    const { error } = await this.getClient()
       .from('favorites')
       .delete()
       .eq('id', id);
@@ -326,7 +344,7 @@ export class SupabaseDB {
   }
 
   async createMessage(message: Message): Promise<Message> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('messages')
       .insert({
         id: message.id,
@@ -343,7 +361,7 @@ export class SupabaseDB {
   }
 
   async getMessageById(id: string): Promise<Message | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('messages')
       .select('*')
       .eq('id', id)
@@ -357,7 +375,7 @@ export class SupabaseDB {
   }
 
   async getMessagesBetweenUsers(userId1: string, userId2: string): Promise<Message[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('messages')
       .select('*')
       .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
@@ -368,7 +386,7 @@ export class SupabaseDB {
   }
 
   async markMessageAsRead(id: string): Promise<Message | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('messages')
       .update({ read: true })
       .eq('id', id)
@@ -381,14 +399,14 @@ export class SupabaseDB {
 
   async createOrUpdateConversation(conversation: Conversation): Promise<Conversation> {
     const sortedIds = [...conversation.participantIds].sort();
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await this.getClient()
       .from('conversations')
       .select('*')
       .contains('participant_ids', sortedIds)
       .single();
 
     if (existing) {
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await this.getClient()
         .from('conversations')
         .update({
           last_message_id: conversation.lastMessage?.id,
@@ -401,7 +419,7 @@ export class SupabaseDB {
       return this.mapConversationFromDB(data);
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('conversations')
       .insert({
         id: conversation.id,
@@ -416,7 +434,7 @@ export class SupabaseDB {
   }
 
   async getConversationById(id: string): Promise<Conversation | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('conversations')
       .select('*')
       .eq('id', id)
@@ -430,7 +448,7 @@ export class SupabaseDB {
   }
 
   async getConversationsByUserId(userId: string): Promise<Conversation[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('conversations')
       .select('*')
       .contains('participant_ids', [userId])
@@ -441,7 +459,7 @@ export class SupabaseDB {
   }
 
   async createRating(rating: Rating): Promise<Rating> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('ratings')
       .insert({
         id: rating.id,
@@ -459,7 +477,7 @@ export class SupabaseDB {
   }
 
   async getRatingById(id: string): Promise<Rating | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('ratings')
       .select('*')
       .eq('id', id)
@@ -473,7 +491,7 @@ export class SupabaseDB {
   }
 
   async getRatingsByCreatorId(creatorId: string): Promise<Rating[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('ratings')
       .select('*')
       .eq('creator_id', creatorId)
@@ -484,7 +502,7 @@ export class SupabaseDB {
   }
 
   async getRatingByEventAndReviewer(eventId: string, reviewerId: string): Promise<Rating | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('ratings')
       .select('*')
       .eq('event_id', eventId)
@@ -503,7 +521,7 @@ export class SupabaseDB {
     if (updates.rating !== undefined) dbUpdates.rating = updates.rating;
     if (updates.review !== undefined) dbUpdates.review = updates.review;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('ratings')
       .update(dbUpdates)
       .eq('id', id)
@@ -515,7 +533,7 @@ export class SupabaseDB {
   }
 
   async createBlockedUser(blockedUser: BlockedUser): Promise<BlockedUser> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('blocked_users')
       .insert({
         id: blockedUser.id,
@@ -530,7 +548,7 @@ export class SupabaseDB {
   }
 
   async getBlockedUser(blockerId: string, blockedId: string): Promise<BlockedUser | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('blocked_users')
       .select('*')
       .eq('blocker_id', blockerId)
@@ -545,7 +563,7 @@ export class SupabaseDB {
   }
 
   async getBlockedUsersByBlockerId(blockerId: string): Promise<BlockedUser[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('blocked_users')
       .select('*')
       .eq('blocker_id', blockerId);
@@ -555,7 +573,7 @@ export class SupabaseDB {
   }
 
   async deleteBlockedUser(id: string): Promise<boolean> {
-    const { error } = await supabaseAdmin
+    const { error } = await this.getClient()
       .from('blocked_users')
       .delete()
       .eq('id', id);
@@ -565,7 +583,7 @@ export class SupabaseDB {
   }
 
   async createReport(report: Report): Promise<Report> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('reports')
       .insert({
         id: report.id,
@@ -583,7 +601,7 @@ export class SupabaseDB {
   }
 
   async getReportById(id: string): Promise<Report | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('reports')
       .select('*')
       .eq('id', id)
@@ -597,7 +615,7 @@ export class SupabaseDB {
   }
 
   async getAllReports(): Promise<Report[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('reports')
       .select('*')
       .order('created_at', { ascending: false });
@@ -607,7 +625,7 @@ export class SupabaseDB {
   }
 
   async createNotification(notification: Notification): Promise<Notification> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('notifications')
       .insert({
         id: notification.id,
@@ -626,7 +644,7 @@ export class SupabaseDB {
   }
 
   async getNotificationById(id: string): Promise<Notification | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('notifications')
       .select('*')
       .eq('id', id)
@@ -640,7 +658,7 @@ export class SupabaseDB {
   }
 
   async getNotificationsByUserId(userId: string): Promise<Notification[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('notifications')
       .select('*')
       .eq('user_id', userId)
@@ -651,7 +669,7 @@ export class SupabaseDB {
   }
 
   async markNotificationAsRead(id: string): Promise<Notification | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('notifications')
       .update({ read: true })
       .eq('id', id)
@@ -663,7 +681,7 @@ export class SupabaseDB {
   }
 
   async markAllNotificationsAsRead(userId: string): Promise<void> {
-    const { error } = await supabaseAdmin
+    const { error } = await this.getClient()
       .from('notifications')
       .update({ read: true })
       .eq('user_id', userId)
@@ -673,7 +691,7 @@ export class SupabaseDB {
   }
 
   async deleteNotification(id: string): Promise<boolean> {
-    const { error } = await supabaseAdmin
+    const { error } = await this.getClient()
       .from('notifications')
       .delete()
       .eq('id', id);
@@ -683,7 +701,7 @@ export class SupabaseDB {
   }
 
   async getNotificationSettings(userId: string): Promise<NotificationSettings | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('notification_settings')
       .select('*')
       .eq('user_id', userId)
@@ -697,7 +715,7 @@ export class SupabaseDB {
   }
 
   async createOrUpdateNotificationSettings(settings: NotificationSettings): Promise<NotificationSettings> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('notification_settings')
       .upsert({
         user_id: settings.userId,
@@ -718,7 +736,7 @@ export class SupabaseDB {
   }
 
   async createEventSafetyInfo(safetyInfo: EventSafetyInfo): Promise<EventSafetyInfo> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('event_safety')
       .insert({
         id: safetyInfo.id,
@@ -737,7 +755,7 @@ export class SupabaseDB {
   }
 
   async getEventSafetyInfo(eventId: string, userId: string): Promise<EventSafetyInfo | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('event_safety')
       .select('*')
       .eq('event_id', eventId)
@@ -758,7 +776,7 @@ export class SupabaseDB {
     if (updates.checkOutTime !== undefined) dbUpdates.check_out_time = updates.checkOutTime;
     if (updates.emergencyAlert !== undefined) dbUpdates.emergency_alert = updates.emergencyAlert;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('event_safety')
       .update(dbUpdates)
       .eq('id', id)
@@ -770,7 +788,7 @@ export class SupabaseDB {
   }
 
   async createEventAttendee(attendee: EventAttendee): Promise<EventAttendee> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('event_attendees')
       .insert({
         id: attendee.id,
@@ -788,7 +806,7 @@ export class SupabaseDB {
   }
 
   async getEventAttendees(eventId: string): Promise<EventAttendee[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('event_attendees')
       .select('*')
       .eq('event_id', eventId);
@@ -798,7 +816,7 @@ export class SupabaseDB {
   }
 
   async getUserAttendance(userId: string, eventId: string): Promise<EventAttendee | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('event_attendees')
       .select('*')
       .eq('user_id', userId)
@@ -818,7 +836,7 @@ export class SupabaseDB {
     if (updates.ticketId !== undefined) dbUpdates.ticket_id = updates.ticketId;
     if (updates.paidAmount !== undefined) dbUpdates.paid_amount = updates.paidAmount;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('event_attendees')
       .update(dbUpdates)
       .eq('id', id)
@@ -830,7 +848,7 @@ export class SupabaseDB {
   }
 
   async createVerificationRequest(request: VerificationRequest): Promise<VerificationRequest> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('verification_requests')
       .insert({
         id: request.id,
@@ -848,7 +866,7 @@ export class SupabaseDB {
   }
 
   async getVerificationRequestByUserId(userId: string): Promise<VerificationRequest | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('verification_requests')
       .select('*')
       .eq('user_id', userId)
@@ -869,7 +887,7 @@ export class SupabaseDB {
     if (updates.reason !== undefined) dbUpdates.reason = updates.reason;
     if (updates.reviewedAt !== undefined) dbUpdates.reviewed_at = updates.reviewedAt;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('verification_requests')
       .update(dbUpdates)
       .eq('id', id)
@@ -881,7 +899,7 @@ export class SupabaseDB {
   }
 
   async createPayment(payment: Payment): Promise<Payment> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('payments')
       .insert({
         id: payment.id,
@@ -900,7 +918,7 @@ export class SupabaseDB {
   }
 
   async getPaymentById(id: string): Promise<Payment | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('payments')
       .select('*')
       .eq('id', id)
@@ -914,7 +932,7 @@ export class SupabaseDB {
   }
 
   async getPaymentsByUserId(userId: string): Promise<Payment[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('payments')
       .select('*')
       .eq('user_id', userId)
@@ -929,7 +947,7 @@ export class SupabaseDB {
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.stripePaymentIntentId !== undefined) dbUpdates.stripe_payment_intent_id = updates.stripePaymentIntentId;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('payments')
       .update(dbUpdates)
       .eq('id', id)
@@ -941,7 +959,7 @@ export class SupabaseDB {
   }
 
   async createPayout(payout: Payout): Promise<Payout> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('payouts')
       .insert({
         id: payout.id,
@@ -961,7 +979,7 @@ export class SupabaseDB {
   }
 
   async getPayoutById(id: string): Promise<Payout | null> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('payouts')
       .select('*')
       .eq('id', id)
@@ -975,7 +993,7 @@ export class SupabaseDB {
   }
 
   async getPayoutsByCreatorId(creatorId: string): Promise<Payout[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('payouts')
       .select('*')
       .eq('creator_id', creatorId)
@@ -991,7 +1009,7 @@ export class SupabaseDB {
     if (updates.stripePayoutId !== undefined) dbUpdates.stripe_payout_id = updates.stripePayoutId;
     if (updates.completedAt !== undefined) dbUpdates.completed_at = updates.completedAt;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await this.getClient()
       .from('payouts')
       .update(dbUpdates)
       .eq('id', id)

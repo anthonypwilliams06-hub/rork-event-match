@@ -2,7 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect } from 'react';
 import { User } from '@/types';
 import { trpcClient } from '@/lib/trpc';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -12,6 +12,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      console.warn('[Auth] Supabase not configured, skipping auth initialization');
+      setIsLoading(false);
+      return;
+    }
+
     loadSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
@@ -47,6 +53,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   }, []);
 
   const loadSession = async () => {
+    if (!isSupabaseConfigured) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       console.log('Loading session from Supabase...');
       const { data: { session }, error } = await supabase.auth.getSession();
@@ -135,7 +146,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const logout = async () => {
     try {
       await trpcClient.auth.logout.mutate({ token: '' });
-      await supabase.auth.signOut();
+      if (isSupabaseConfigured) {
+        await supabase.auth.signOut();
+      }
       
       setSession(null);
       setUser(null);
