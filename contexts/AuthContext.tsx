@@ -41,10 +41,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         console.log('No session found in storage');
       }
     } catch (error) {
-      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure'))) {
-        console.log('Storage unavailable (insecure context). Session will not persist.');
+      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure') || error.message.includes('operation is insecure'))) {
+        console.warn('[Auth] Storage unavailable in insecure context. Using memory-only session.');
       } else {
-        console.log('Could not load session from storage:', error instanceof Error ? error.message : 'Unknown error');
+        console.warn('[Auth] Could not load session from storage:', error instanceof Error ? error.message : 'Unknown error');
       }
     } finally {
       setIsLoading(false);
@@ -52,39 +52,39 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   };
 
   const saveSession = async (session: AuthSession) => {
+    setToken(session.token);
+    setUser(session.user);
+    setIsAuthenticated(true);
+    
     try {
       console.log('Saving session to storage for user:', session.user.email);
       await AsyncStorage.setItem(AUTH_TOKEN_KEY, session.token);
       await AsyncStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
       console.log('Session saved successfully');
     } catch (error) {
-      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure'))) {
-        console.log('Storage unavailable (insecure context). Session will not persist across refreshes.');
+      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure') || error.message.includes('operation is insecure'))) {
+        console.warn('[Auth] Storage unavailable in insecure context. Session active but will not persist.');
       } else {
-        console.log('Could not persist session to storage:', error instanceof Error ? error.message : 'Unknown error');
+        console.warn('[Auth] Could not persist session to storage:', error instanceof Error ? error.message : 'Unknown error');
       }
     }
-    
-    setToken(session.token);
-    setUser(session.user);
-    setIsAuthenticated(true);
   };
 
   const clearSession = async () => {
+    setToken(null);
+    setUser(null);
+    setIsAuthenticated(false);
+    
     try {
       await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
       await AsyncStorage.removeItem(AUTH_SESSION_KEY);
     } catch (error) {
-      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure'))) {
-        console.log('Storage unavailable (insecure context).');
+      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure') || error.message.includes('operation is insecure'))) {
+        console.warn('[Auth] Storage unavailable in insecure context.');
       } else {
-        console.log('Could not clear session from storage:', error instanceof Error ? error.message : 'Unknown error');
+        console.warn('[Auth] Could not clear session from storage:', error instanceof Error ? error.message : 'Unknown error');
       }
     }
-    
-    setToken(null);
-    setUser(null);
-    setIsAuthenticated(false);
   };
 
   const signup = async (email: string, password: string, name: string, dateOfBirth: Date) => {

@@ -56,7 +56,14 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         setSettings(prev => ({ ...prev, userId: user.id }));
       }
     } catch (error) {
-      console.log('Error loading notification settings:', error);
+      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure') || error.message.includes('operation is insecure'))) {
+        console.warn('[Notifications] Storage unavailable in insecure context. Using default settings.');
+        if (user) {
+          setSettings(prev => ({ ...prev, userId: user.id }));
+        }
+      } else {
+        console.warn('[Notifications] Error loading settings:', error);
+      }
     }
   }, [user]);
 
@@ -96,11 +103,16 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   }, [notificationsQuery]);
 
   const saveSettings = async (newSettings: NotificationSettings) => {
+    setSettings(newSettings);
+    
     try {
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
-      setSettings(newSettings);
     } catch (error) {
-      console.log('Error saving notification settings:', error);
+      if (error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure') || error.message.includes('operation is insecure'))) {
+        console.warn('[Notifications] Storage unavailable in insecure context. Settings active but will not persist.');
+      } else {
+        console.warn('[Notifications] Error saving settings:', error);
+      }
     }
   };
 
