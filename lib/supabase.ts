@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 
   Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL || '';
@@ -65,7 +66,6 @@ class SupabaseStorage {
   async getItem(key: string): Promise<string | null> {
     try {
       if (Platform.OS !== 'web') {
-        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
         return await AsyncStorage.getItem(key);
       }
       
@@ -91,7 +91,6 @@ class SupabaseStorage {
     
     try {
       if (Platform.OS !== 'web') {
-        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
         await AsyncStorage.setItem(key, value);
         return;
       }
@@ -116,7 +115,6 @@ class SupabaseStorage {
     
     try {
       if (Platform.OS !== 'web') {
-        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
         await AsyncStorage.removeItem(key);
         return;
       }
