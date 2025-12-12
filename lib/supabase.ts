@@ -21,14 +21,19 @@ function isLocalStorageSafe(): boolean {
   }
   
   try {
-    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    
+    const storage = window.localStorage;
+    if (!storage) {
       return false;
     }
     
     const testKey = '__supabase_storage_test__';
-    localStorage.setItem(testKey, testKey);
-    const result = localStorage.getItem(testKey);
-    localStorage.removeItem(testKey);
+    storage.setItem(testKey, testKey);
+    const result = storage.getItem(testKey);
+    storage.removeItem(testKey);
     return result === testKey;
   } catch {
     return false;
@@ -43,8 +48,23 @@ class SupabaseStorage {
     if (this.localStorageSafe !== null) {
       return this.localStorageSafe;
     }
-    this.localStorageSafe = isLocalStorageSafe();
+    try {
+      this.localStorageSafe = isLocalStorageSafe();
+    } catch {
+      this.localStorageSafe = false;
+    }
     return this.localStorageSafe;
+  }
+
+  private getStorage(): Storage | null {
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage;
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
   }
 
   async getItem(key: string): Promise<string | null> {
@@ -55,10 +75,13 @@ class SupabaseStorage {
       }
       
       if (this.checkLocalStorage()) {
-        try {
-          return localStorage.getItem(key);
-        } catch {
-          return this.memoryStorage.get(key) || null;
+        const storage = this.getStorage();
+        if (storage) {
+          try {
+            return storage.getItem(key);
+          } catch {
+            return this.memoryStorage.get(key) || null;
+          }
         }
       }
       
@@ -79,10 +102,13 @@ class SupabaseStorage {
       }
       
       if (this.checkLocalStorage()) {
-        try {
-          localStorage.setItem(key, value);
-        } catch {
-          // Memory storage already set
+        const storage = this.getStorage();
+        if (storage) {
+          try {
+            storage.setItem(key, value);
+          } catch {
+            // Memory storage already set
+          }
         }
       }
     } catch {
@@ -101,10 +127,13 @@ class SupabaseStorage {
       }
       
       if (this.checkLocalStorage()) {
-        try {
-          localStorage.removeItem(key);
-        } catch {
-          // Already removed from memory
+        const storage = this.getStorage();
+        if (storage) {
+          try {
+            storage.removeItem(key);
+          } catch {
+            // Already removed from memory
+          }
         }
       }
     } catch {

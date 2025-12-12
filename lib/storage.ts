@@ -26,15 +26,21 @@ class SafeStorage {
     }
 
     try {
-      if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      if (typeof window === 'undefined') {
+        this.isAvailable = false;
+        return false;
+      }
+      
+      const storage = window.localStorage;
+      if (!storage) {
         this.isAvailable = false;
         return false;
       }
       
       const testKey = '__safe_storage_test__';
-      localStorage.setItem(testKey, testKey);
-      const result = localStorage.getItem(testKey);
-      localStorage.removeItem(testKey);
+      storage.setItem(testKey, testKey);
+      const result = storage.getItem(testKey);
+      storage.removeItem(testKey);
       
       this.isAvailable = result === testKey;
       return this.isAvailable;
