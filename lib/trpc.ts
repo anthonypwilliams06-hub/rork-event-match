@@ -10,6 +10,14 @@ const getBaseUrl = () => {
   if (url) {
     return url;
   }
+  
+  // For local development, use localhost
+  if (typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || 
+       window.location.hostname === '127.0.0.1')) {
+    return 'http://localhost:3000'; // Change 3000 to your actual backend port
+  }
+  
   console.warn('EXPO_PUBLIC_RORK_API_BASE_URL is not set. Using placeholder.');
   return 'https://api.placeholder.invalid';
 };
@@ -17,7 +25,7 @@ const getBaseUrl = () => {
 export const trpcClient = trpc.createClient({
   links: [
     httpLink({
-      url: `${getBaseUrl()}/trpc`,
+      url: `${getBaseUrl()}/api/trpc`, // Changed from /trpc to /api/trpc
       transformer: superjson,
     }),
   ],
