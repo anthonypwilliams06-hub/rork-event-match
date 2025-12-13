@@ -22,21 +22,41 @@ export default function RoleSelectionScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [isRedirecting, setIsRedirecting] = React.useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'failed'>('checking');
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
 
   useEffect(() => {
     const testConnection = async () => {
-      console.log('[Supabase Test] Starting connection test...');
-      console.log('[Supabase Test] isSupabaseConfigured:', isSupabaseConfigured);
+      const logs: string[] = [];
+      const addLog = (msg: string) => {
+        console.log('[Supabase Test]', msg);
+        logs.push(msg);
+        setDebugInfo([...logs]);
+      };
+      
+      addLog('Starting connection test...');
+      
+      const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const key = process.env.EXPO_PUBLIC_SUPABASE_KEY;
+      
+      addLog(`URL: ${url ? url.substring(0, 30) + '...' : '❌ MISSING'}`);
+      addLog(`Key: ${key ? key.substring(0, 20) + '...' : '❌ MISSING'}`);
+      addLog(`isSupabaseConfigured: ${isSupabaseConfigured}`);
       
       if (!isSupabaseConfigured) {
-        console.log('[Supabase Test] ❌ Supabase not configured');
+        addLog('❌ Supabase not configured - check env vars');
         setConnectionStatus('failed');
         return;
       }
       
-      const isConnected = await checkSupabaseConnection();
-      console.log('[Supabase Test] Connection result:', isConnected);
-      setConnectionStatus(isConnected ? 'connected' : 'failed');
+      try {
+        addLog('Testing database query...');
+        const isConnected = await checkSupabaseConnection();
+        addLog(`Connection result: ${isConnected ? '✅ SUCCESS' : '❌ FAILED'}`);
+        setConnectionStatus(isConnected ? 'connected' : 'failed');
+      } catch (err) {
+        addLog(`❌ Error: ${err instanceof Error ? err.message : String(err)}`);
+        setConnectionStatus('failed');
+      }
     };
     
     testConnection();
@@ -89,6 +109,11 @@ export default function RoleSelectionScreen() {
            connectionStatus === 'connected' ? '✅ Supabase Connected' : 
            '❌ Supabase Connection Failed'}
         </Text>
+        <View style={styles.debugContainer}>
+          {debugInfo.map((log, i) => (
+            <Text key={i} style={styles.debugText}>{log}</Text>
+          ))}
+        </View>
       </View>
     );
   }
@@ -208,6 +233,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 14,
     color: Colors.text.secondary,
+  },
+  debugContainer: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    maxWidth: '90%',
+  },
+  debugText: {
+    fontSize: 11,
+    fontFamily: 'monospace',
+    color: '#333',
+    marginVertical: 2,
   },
   cardsContainer: {
     gap: 20,
