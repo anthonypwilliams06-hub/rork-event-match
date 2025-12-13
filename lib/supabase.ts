@@ -119,6 +119,17 @@ function getSupabaseClient(): SupabaseClient {
   }
   
   if (!supabaseInstance) {
+    const isWebPlatform = Platform.OS === 'web';
+    
+    // No-op lock function to disable LockManager on web (causes SecurityError in restricted contexts)
+    const noOpLock = async <R>(
+      _name: string,
+      _acquireTimeout: number,
+      fn: () => Promise<R>
+    ): Promise<R> => {
+      return fn();
+    };
+    
     supabaseInstance = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
       auth: {
         autoRefreshToken: true,
@@ -126,10 +137,17 @@ function getSupabaseClient(): SupabaseClient {
         detectSessionInUrl: false,
         storage: supabaseStorage,
         flowType: 'implicit',
+        // Disable LockManager on web (causes SecurityError in restricted contexts)
+        lock: isWebPlatform ? noOpLock : undefined,
       },
       global: {
         headers: {
           'X-Client-Info': `expo-${Platform.OS}`,
+        },
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 2,
         },
       },
     });
