@@ -6,26 +6,24 @@ import superjson from "superjson";
 export const trpc = createTRPCReact<AppRouter>();
 
 const getBaseUrl = () => {
+  // For Rork: use the same origin as the app
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  
+  // Fallback for server-side rendering
   const url = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
   if (url) {
     return url;
   }
   
-  // For local development, use localhost
-  if (typeof window !== 'undefined' && 
-      (window.location.hostname === 'localhost' || 
-       window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:3000'; // Change 3000 to your actual backend port
-  }
-  
-  console.warn('EXPO_PUBLIC_RORK_API_BASE_URL is not set. Using placeholder.');
-  return 'https://api.placeholder.invalid';
+  return 'http://localhost:3000';
 };
 
 export const trpcClient = trpc.createClient({
   links: [
     httpLink({
-      url: `${getBaseUrl()}/api/trpc`, // Changed from /trpc to /api/trpc
+      url: `${getBaseUrl()}/api/trpc`,
       transformer: superjson,
     }),
   ],
