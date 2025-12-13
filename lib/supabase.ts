@@ -3,6 +3,19 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const isRestrictedWebContext = (): boolean => {
+  if (Platform.OS !== 'web') return false;
+  try {
+    if (typeof window === 'undefined') return true;
+    const testKey = '__storage_test__';
+    window.localStorage.setItem(testKey, testKey);
+    window.localStorage.removeItem(testKey);
+    return false;
+  } catch {
+    return true;
+  }
+};
+
 function getSupabaseUrl(): string {
   try {
     return process.env.EXPO_PUBLIC_SUPABASE_URL || 
@@ -34,8 +47,20 @@ const isSupabaseConfigured = checkIsSupabaseConfigured();
 class SupabaseStorage {
   private memoryStorage: Map<string, string> = new Map();
   private storageAvailable: boolean | null = null;
+  private useMemoryOnly: boolean = false;
+
+  constructor() {
+    this.useMemoryOnly = isRestrictedWebContext();
+    if (this.useMemoryOnly) {
+      console.log('[Supabase] Using memory-only storage due to restricted context');
+    }
+  }
 
   private checkStorageAvailable(): boolean {
+    if (this.useMemoryOnly) {
+      return false;
+    }
+
     if (this.storageAvailable !== null) {
       return this.storageAvailable;
     }
@@ -56,7 +81,6 @@ class SupabaseStorage {
       this.storageAvailable = true;
       return true;
     } catch {
-      console.warn('[Supabase] localStorage not available, using memory storage');
       this.storageAvailable = false;
       return false;
     }
@@ -120,8 +144,8 @@ function getSupabaseClient(): SupabaseClient {
   
   if (!supabaseInstance) {
     const isWebPlatform = Platform.OS === 'web';
+    const isRestricted = isRestrictedWebContext();
     
-    // No-op lock function to disable LockManager on web (causes SecurityError in restricted contexts)
     const noOpLock = async <R>(
       _name: string,
       _acquireTimeout: number,
@@ -132,20 +156,24 @@ function getSupabaseClient(): SupabaseClient {
     
     supabaseInstance = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
       auth: {
-        autoRefreshToken: true,
-        persistSession: true,
+        autoRefreshToken: !isRestricted,
+        persistSession: !isRestricted,
         detectSessionInUrl: false,
         storage: supabaseStorage,
         flowType: 'implicit',
-        // Disable LockManager on web (causes SecurityError in restricted contexts)
         lock: isWebPlatform ? noOpLock : undefined,
+        storageKey: 'supabase-auth-token',
       },
       global: {
         headers: {
           'X-Client-Info': `expo-${Platform.OS}`,
         },
       },
-      realtime: {
+      realtime: isRestricted ? {
+        params: {
+          eventsPerSecond: 0,
+        },
+      } : {
         params: {
           eventsPerSecond: 2,
         },
@@ -154,6 +182,7 @@ function getSupabaseClient(): SupabaseClient {
     
     console.log('[Supabase] Client initialized', {
       platform: Platform.OS,
+      restrictedContext: isRestricted,
     });
   }
   
