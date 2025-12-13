@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,12 +14,33 @@ import { Heart, Calendar } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import Colors from '@/constants/colors';
+import { isSupabaseConfigured, checkSupabaseConnection } from '@/lib/supabase';
 
 export default function RoleSelectionScreen() {
   const router = useRouter();
   const { selectRole } = useApp();
   const { isAuthenticated, isLoading, user } = useAuth();
   const [isRedirecting, setIsRedirecting] = React.useState(true);
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'failed'>('checking');
+
+  useEffect(() => {
+    const testConnection = async () => {
+      console.log('[Supabase Test] Starting connection test...');
+      console.log('[Supabase Test] isSupabaseConfigured:', isSupabaseConfigured);
+      
+      if (!isSupabaseConfigured) {
+        console.log('[Supabase Test] ❌ Supabase not configured');
+        setConnectionStatus('failed');
+        return;
+      }
+      
+      const isConnected = await checkSupabaseConnection();
+      console.log('[Supabase Test] Connection result:', isConnected);
+      setConnectionStatus(isConnected ? 'connected' : 'failed');
+    };
+    
+    testConnection();
+  }, []);
 
   useEffect(() => {
     if (isLoading) {
@@ -63,6 +84,11 @@ export default function RoleSelectionScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.coral} />
+        <Text style={styles.statusText}>
+          {connectionStatus === 'checking' ? '🔄 Testing Supabase...' : 
+           connectionStatus === 'connected' ? '✅ Supabase Connected' : 
+           '❌ Supabase Connection Failed'}
+        </Text>
       </View>
     );
   }
@@ -177,6 +203,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: Colors.background.primary,
+  },
+  statusText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: Colors.text.secondary,
   },
   cardsContainer: {
     gap: 20,
