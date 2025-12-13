@@ -33,11 +33,43 @@ const isSupabaseConfigured = checkIsSupabaseConfigured();
 
 class SupabaseStorage {
   private memoryStorage: Map<string, string> = new Map();
+  private storageAvailable: boolean | null = null;
+
+  private checkStorageAvailable(): boolean {
+    if (this.storageAvailable !== null) {
+      return this.storageAvailable;
+    }
+
+    if (Platform.OS !== 'web') {
+      this.storageAvailable = true;
+      return true;
+    }
+
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        this.storageAvailable = false;
+        return false;
+      }
+      const testKey = '__supabase_storage_test__';
+      window.localStorage.setItem(testKey, 'test');
+      window.localStorage.removeItem(testKey);
+      this.storageAvailable = true;
+      return true;
+    } catch {
+      console.warn('[Supabase] localStorage not available, using memory storage');
+      this.storageAvailable = false;
+      return false;
+    }
+  }
 
   async getItem(key: string): Promise<string | null> {
     try {
       if (Platform.OS !== 'web') {
-        const value = await AsyncStorage.getItem(key);
+        return await AsyncStorage.getItem(key);
+      }
+      
+      if (this.checkStorageAvailable()) {
+        const value = window.localStorage.getItem(key);
         return value;
       }
       
@@ -54,6 +86,8 @@ class SupabaseStorage {
     try {
       if (Platform.OS !== 'web') {
         await AsyncStorage.setItem(key, value);
+      } else if (this.checkStorageAvailable()) {
+        window.localStorage.setItem(key, value);
       }
     } catch (error) {
       console.warn('[Supabase] setItem error:', error);
@@ -66,6 +100,8 @@ class SupabaseStorage {
     try {
       if (Platform.OS !== 'web') {
         await AsyncStorage.removeItem(key);
+      } else if (this.checkStorageAvailable()) {
+        window.localStorage.removeItem(key);
       }
     } catch (error) {
       console.warn('[Supabase] removeItem error:', error);
@@ -83,21 +119,23 @@ function getSupabaseClient(): SupabaseClient {
   }
   
   if (!supabaseInstance) {
-    const isWeb = Platform.OS === 'web';
-    const canPersist = !isWeb;
-    
     supabaseInstance = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
       auth: {
-        autoRefreshToken: canPersist,
-        persistSession: canPersist,
+        autoRefreshToken: true,
+        persistSession: true,
         detectSessionInUrl: false,
         storage: supabaseStorage,
+        flowType: 'implicit',
+      },
+      global: {
+        headers: {
+          'X-Client-Info': `expo-${Platform.OS}`,
+        },
       },
     });
     
     console.log('[Supabase] Client initialized', {
       platform: Platform.OS,
-      persistSession: canPersist,
     });
   }
   
