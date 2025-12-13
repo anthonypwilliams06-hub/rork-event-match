@@ -1,7 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import { storage } from '@/lib/storage';
 import { useAuth } from './AuthContext';
 import { trpc } from '@/lib/trpc';
@@ -9,15 +8,29 @@ import { Notification, NotificationSettings } from '@/types';
 
 const SETTINGS_KEY = 'notification_settings';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+let Notifications: typeof import('expo-notifications') | null = null;
+let notificationsAvailable = false;
+
+if (Platform.OS !== 'web') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    Notifications = require('expo-notifications');
+    notificationsAvailable = true;
+    
+    Notifications?.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch (error) {
+    console.log('[Notifications] expo-notifications not available:', error);
+    notificationsAvailable = false;
+  }
+}
 
 export const [NotificationProvider, useNotifications] = createContextHook(() => {
   const { user, token, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -34,8 +47,8 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     pushEnabled: false,
   });
 
-  const notificationListener = useRef<Notifications.Subscription | undefined>(undefined);
-  const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
+  const notificationListener = useRef<any>(undefined);
+  const responseListener = useRef<any>(undefined);
 
   const notificationsQuery = trpc.notifications.list.useQuery(
     { token: token || '' },
@@ -81,7 +94,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   }, [notificationsQuery.data]);
 
   useEffect(() => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === 'web' || !notificationsAvailable || !Notifications) {
       return;
     }
 
@@ -114,7 +127,12 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
 
   const requestPermissions = async (): Promise<boolean> => {
     if (Platform.OS === 'web') {
-      console.log('Push notifications not available on web');
+      console.log('[Notifications] Push notifications not available on web');
+      return false;
+    }
+
+    if (!notificationsAvailable || !Notifications) {
+      console.log('[Notifications] expo-notifications not available (requires development build)');
       return false;
     }
 
@@ -150,7 +168,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       console.log('Push token registered:', pushToken);
       return true;
     } catch (error) {
-      console.log('Error requesting notification permissions:', error);
+      console.log('[Notifications] Error requesting notification permissions:', error);
       setPermissionStatus('denied');
       return false;
     }
@@ -189,7 +207,12 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
 
   const scheduleDemoNotification = async () => {
     if (Platform.OS === 'web') {
-      console.log('Demo notifications not available on web');
+      console.log('[Notifications] Demo notifications not available on web');
+      return;
+    }
+
+    if (!notificationsAvailable || !Notifications) {
+      console.log('[Notifications] expo-notifications not available (requires development build)');
       return;
     }
 
@@ -210,6 +233,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     unreadCount,
     settings,
     isLoading: notificationsQuery.isLoading,
+    notificationsAvailable,
     requestPermissions,
     markAsRead,
     markAllAsRead,
