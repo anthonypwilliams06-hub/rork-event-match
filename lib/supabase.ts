@@ -3,146 +3,42 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 
-  Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_KEY || 
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 
-  Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_KEY ||
-  Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-
-const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
-
-function validateSupabaseUrl(url: string): boolean {
-  if (!url) return false;
+function getSupabaseUrl(): string {
   try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' && parsed.hostname.includes('supabase');
+    return process.env.EXPO_PUBLIC_SUPABASE_URL || 
+      Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL || '';
   } catch {
-    return false;
+    return '';
   }
 }
 
-if (!isSupabaseConfigured) {
-  console.warn('[Supabase] ⚠️ URL or Anon Key is missing. Check your environment variables.');
-} else if (!validateSupabaseUrl(supabaseUrl)) {
-  console.warn('[Supabase] ⚠️ URL format appears invalid. Expected https://*.supabase.co');
-}
-
-let localStorageChecked = false;
-let localStorageAvailable = false;
-
-function isLocalStorageSafe(): boolean {
-  if (Platform.OS !== 'web') {
-    return false;
-  }
-  
-  if (localStorageChecked) {
-    return localStorageAvailable;
-  }
-  
-  localStorageChecked = true;
-  localStorageAvailable = false;
-  
+function getSupabaseAnonKey(): string {
   try {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-    
-    // Some environments throw just by accessing localStorage property
-    let storage: Storage | undefined;
-    try {
-      storage = window.localStorage;
-    } catch {
-      console.log('[Supabase] localStorage access blocked');
-      return false;
-    }
-    
-    if (!storage) {
-      return false;
-    }
-    
-    // Test actual read/write to catch "operation is insecure" errors
-    const testKey = '__supabase_storage_test__';
-    storage.setItem(testKey, testKey);
-    const result = storage.getItem(testKey);
-    storage.removeItem(testKey);
-    localStorageAvailable = result === testKey;
-    return localStorageAvailable;
+    return process.env.EXPO_PUBLIC_SUPABASE_KEY || 
+      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 
+      Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_KEY ||
+      Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
   } catch {
-    console.log('[Supabase] localStorage not available, using memory storage');
-    return false;
+    return '';
   }
 }
+
+function checkIsSupabaseConfigured(): boolean {
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+  return Boolean(url && key);
+}
+
+const isSupabaseConfigured = checkIsSupabaseConfigured();
 
 class SupabaseStorage {
   private memoryStorage: Map<string, string> = new Map();
-  private localStorageSafe: boolean | null = null;
-  private storageChecked = false;
-
-  private checkLocalStorage(): boolean {
-    if (this.storageChecked) {
-      return this.localStorageSafe === true;
-    }
-    
-    this.storageChecked = true;
-    this.localStorageSafe = false;
-    
-    try {
-      this.localStorageSafe = isLocalStorageSafe();
-    } catch {
-      this.localStorageSafe = false;
-    }
-    
-    return this.localStorageSafe === true;
-  }
-
-  private getStorage(): Storage | null {
-    if (Platform.OS !== 'web') {
-      return null;
-    }
-    
-    // Don't even try if we know it's not safe
-    if (this.storageChecked && !this.localStorageSafe) {
-      return null;
-    }
-    
-    try {
-      if (typeof window !== 'undefined') {
-        // Double try-catch because accessing localStorage can throw
-        try {
-          const storage = window.localStorage;
-          if (storage) {
-            return storage;
-          }
-        } catch {
-          this.localStorageSafe = false;
-          this.storageChecked = true;
-        }
-      }
-    } catch {
-      this.localStorageSafe = false;
-      this.storageChecked = true;
-    }
-    return null;
-  }
 
   async getItem(key: string): Promise<string | null> {
     try {
       if (Platform.OS !== 'web') {
         const value = await AsyncStorage.getItem(key);
         return value;
-      }
-      
-      // For web, try localStorage only if it's safe
-      if (this.checkLocalStorage()) {
-        const storage = this.getStorage();
-        if (storage) {
-          try {
-            return storage.getItem(key);
-          } catch {
-            // Fall through to memory storage
-          }
-        }
       }
       
       return this.memoryStorage.get(key) || null;
@@ -153,29 +49,14 @@ class SupabaseStorage {
   }
 
   async setItem(key: string, value: string): Promise<void> {
-    // Always store in memory as backup
     this.memoryStorage.set(key, value);
     
     try {
       if (Platform.OS !== 'web') {
         await AsyncStorage.setItem(key, value);
-        return;
-      }
-      
-      // For web, try localStorage only if it's safe
-      if (this.checkLocalStorage()) {
-        const storage = this.getStorage();
-        if (storage) {
-          try {
-            storage.setItem(key, value);
-          } catch {
-            // Memory storage already set
-          }
-        }
       }
     } catch (error) {
       console.warn('[Supabase] setItem error:', error);
-      // Memory storage already set as backup
     }
   }
 
@@ -185,23 +66,9 @@ class SupabaseStorage {
     try {
       if (Platform.OS !== 'web') {
         await AsyncStorage.removeItem(key);
-        return;
-      }
-      
-      // For web, try localStorage only if it's safe
-      if (this.checkLocalStorage()) {
-        const storage = this.getStorage();
-        if (storage) {
-          try {
-            storage.removeItem(key);
-          } catch {
-            // Already removed from memory
-          }
-        }
       }
     } catch (error) {
       console.warn('[Supabase] removeItem error:', error);
-      // Already removed from memory
     }
   }
 }
@@ -217,27 +84,12 @@ function getSupabaseClient(): SupabaseClient {
   
   if (!supabaseInstance) {
     const isWeb = Platform.OS === 'web';
+    const canPersist = !isWeb;
     
-    // For web, always start with session persistence disabled to avoid errors
-    // The storage adapter will use memory fallback anyway
-    let canUseLocalStorage = false;
-    
-    if (!isWeb) {
-      // Native platforms can always use AsyncStorage
-      canUseLocalStorage = true;
-    } else {
-      // For web, safely check localStorage availability
-      try {
-        canUseLocalStorage = isLocalStorageSafe();
-      } catch {
-        canUseLocalStorage = false;
-      }
-    }
-    
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+    supabaseInstance = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
       auth: {
-        autoRefreshToken: canUseLocalStorage,
-        persistSession: canUseLocalStorage,
+        autoRefreshToken: canPersist,
+        persistSession: canPersist,
         detectSessionInUrl: false,
         storage: supabaseStorage,
       },
@@ -245,7 +97,7 @@ function getSupabaseClient(): SupabaseClient {
     
     console.log('[Supabase] Client initialized', {
       platform: Platform.OS,
-      persistSession: canUseLocalStorage,
+      persistSession: canPersist,
     });
   }
   
