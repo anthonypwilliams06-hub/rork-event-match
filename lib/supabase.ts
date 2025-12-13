@@ -6,27 +6,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const isRestrictedWebContext = (): boolean => {
   if (Platform.OS !== 'web') return false;
   
-  try {
-    if (typeof window === 'undefined') return true;
-    
-    const isIframe = window.self !== window.top;
-    const isInsecure = window.location.protocol !== 'https:' && 
-                       window.location.hostname !== 'localhost';
-    
-    if (isIframe || isInsecure) return true;
-    
-    try {
-      const testKey = '__storage_test__';
-      window.localStorage.setItem(testKey, testKey);
-      window.localStorage.removeItem(testKey);
-    } catch {
-      return true;
-    }
-    
-    return false;
-  } catch {
-    return true;
-  }
+  // In web preview environments, always assume restricted
+  // This avoids triggering security errors from iframe/storage checks
+  return true;
 };
 
 function getSupabaseUrl(): string {
