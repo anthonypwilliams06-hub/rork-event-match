@@ -1,3 +1,6 @@
+// Must be first import to apply polyfills before any other code runs
+import '@/lib/web-polyfills';
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
