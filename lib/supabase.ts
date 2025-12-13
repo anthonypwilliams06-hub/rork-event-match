@@ -1,7 +1,38 @@
-import { createClient, SupabaseClient, PostgrestError } from '@supabase/supabase-js';
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Patch restricted browser APIs BEFORE importing Supabase
+if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  // Mock BroadcastChannel to prevent "operation is insecure" errors
+  if (!window.BroadcastChannel || true) {
+    (window as any).BroadcastChannel = class MockBroadcastChannel {
+      name: string;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onmessageerror: ((event: MessageEvent) => void) | null = null;
+      constructor(name: string) { this.name = name; }
+      postMessage(_message: any): void {}
+      close(): void {}
+      addEventListener(_type: string, _listener: any): void {}
+      removeEventListener(_type: string, _listener: any): void {}
+      dispatchEvent(_event: Event): boolean { return true; }
+    };
+  }
+
+  // Mock LockManager to prevent lock errors
+  if (!navigator.locks) {
+    (navigator as any).locks = {
+      request: async (_name: string, callback: () => Promise<any>) => {
+        return callback();
+      },
+      query: async () => ({ held: [], pending: [] }),
+    };
+  }
+}
+
+// eslint-disable-next-line import/first
+import { createClient, SupabaseClient, PostgrestError } from '@supabase/supabase-js';
+// eslint-disable-next-line import/first
+import Constants from 'expo-constants';
 
 const isRestrictedWebContext = (): boolean => {
   if (Platform.OS !== 'web') return false;
