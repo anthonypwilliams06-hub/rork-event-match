@@ -1,34 +1,52 @@
-import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Patch restricted browser APIs BEFORE importing Supabase
-if (Platform.OS === 'web' && typeof window !== 'undefined') {
-  // Mock BroadcastChannel to prevent "operation is insecure" errors
-  if (!window.BroadcastChannel || true) {
+// Apply polyfills IMMEDIATELY before any imports
+const applyWebPolyfills = () => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    // Always override BroadcastChannel to prevent "operation is insecure" errors
     (window as any).BroadcastChannel = class MockBroadcastChannel {
       name: string;
       onmessage: ((event: MessageEvent) => void) | null = null;
       onmessageerror: ((event: MessageEvent) => void) | null = null;
       constructor(name: string) { this.name = name; }
-      postMessage(_message: any): void {}
+      postMessage(): void {}
       close(): void {}
-      addEventListener(_type: string, _listener: any): void {}
-      removeEventListener(_type: string, _listener: any): void {}
-      dispatchEvent(_event: Event): boolean { return true; }
+      addEventListener(): void {}
+      removeEventListener(): void {}
+      dispatchEvent(): boolean { return true; }
     };
-  }
 
-  // Mock LockManager to prevent lock errors
-  if (!navigator.locks) {
-    (navigator as any).locks = {
-      request: async (_name: string, callback: () => Promise<any>) => {
-        return callback();
-      },
-      query: async () => ({ held: [], pending: [] }),
-    };
-  }
-}
+    // Mock LockManager
+    if (typeof navigator !== 'undefined') {
+      (navigator as any).locks = {
+        request: async <T>(_name: string, callback: () => Promise<T>): Promise<T> => {
+          return callback();
+        },
+        query: async () => ({ held: [], pending: [] }),
+      };
+    }
 
+    // Mock crypto.randomUUID if needed
+    if (typeof crypto !== 'undefined' && !crypto.randomUUID) {
+      (crypto as any).randomUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+    }
+  } catch (e) {
+    console.warn('[Supabase] Error applying polyfills:', e);
+  }
+};
+
+applyWebPolyfills();
+
+// eslint-disable-next-line import/first
+import { Platform } from 'react-native';
+// eslint-disable-next-line import/first
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // eslint-disable-next-line import/first
 import { createClient, SupabaseClient, PostgrestError } from '@supabase/supabase-js';
 // eslint-disable-next-line import/first
@@ -37,8 +55,7 @@ import Constants from 'expo-constants';
 const isRestrictedWebContext = (): boolean => {
   if (Platform.OS !== 'web') return false;
   
-  // In web preview environments, always assume restricted
-  // This avoids triggering security errors from iframe/storage checks
+  // Always treat web as restricted to avoid security errors
   return true;
 };
 
@@ -180,15 +197,15 @@ function getSupabaseClient(): SupabaseClient {
       return fn();
     };
     
-    supabaseInstance = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    const clientOptions = {
       auth: {
-        autoRefreshToken: !isWebPlatform,
-        persistSession: !isRestricted,
+        autoRefreshToken: false,
+        persistSession: false,
         detectSessionInUrl: false,
         storage: supabaseStorage,
-        flowType: 'pkce',
+        flowType: 'implicit' as const,
         lock: noOpLock,
-        storageKey: 'supabase-auth-token',
+        storageKey: 'sb-auth',
         debug: false,
       },
       global: {
@@ -196,23 +213,23 @@ function getSupabaseClient(): SupabaseClient {
           'X-Client-Info': `expo-${Platform.OS}`,
         },
       },
-      realtime: {
-        params: {
-          eventsPerSecond: 0,
-        },
-      },
-      db: {
-        schema: 'public',
-      },
-    });
-    
+    };
+
+    // Completely disable realtime on web
     if (isWebPlatform) {
-      setTimeout(() => {
-        try {
-          supabaseInstance?.realtime?.disconnect();
-        } catch {
-        }
-      }, 0);
+      (clientOptions as any).realtime = false;
+    }
+
+    supabaseInstance = createClient(getSupabaseUrl(), getSupabaseAnonKey(), clientOptions);
+    
+    // Force disconnect realtime on web to prevent BroadcastChannel usage
+    if (isWebPlatform && supabaseInstance) {
+      try {
+        supabaseInstance.realtime?.disconnect();
+        (supabaseInstance as any).realtime = null;
+      } catch {
+        // Ignore errors
+      }
     }
     
     console.log('[Supabase] Client initialized', {
