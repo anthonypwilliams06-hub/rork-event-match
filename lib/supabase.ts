@@ -7,9 +7,20 @@ const isRestrictedWebContext = (): boolean => {
   if (Platform.OS !== 'web') return false;
   try {
     if (typeof window === 'undefined') return true;
+    
+    // Check localStorage
     const testKey = '__storage_test__';
     window.localStorage.setItem(testKey, testKey);
     window.localStorage.removeItem(testKey);
+    
+    // Check BroadcastChannel
+    try {
+      const bc = new BroadcastChannel('__test__');
+      bc.close();
+    } catch {
+      return true;
+    }
+    
     return false;
   } catch {
     return true;
@@ -156,29 +167,38 @@ function getSupabaseClient(): SupabaseClient {
     
     supabaseInstance = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
       auth: {
-        autoRefreshToken: !isRestricted,
+        autoRefreshToken: !isRestricted && !isWebPlatform,
         persistSession: !isRestricted,
         detectSessionInUrl: false,
         storage: supabaseStorage,
         flowType: 'implicit',
         lock: isWebPlatform ? noOpLock : undefined,
         storageKey: 'supabase-auth-token',
+        debug: false,
       },
       global: {
         headers: {
           'X-Client-Info': `expo-${Platform.OS}`,
         },
       },
-      realtime: isRestricted ? {
+      realtime: {
         params: {
-          eventsPerSecond: 0,
-        },
-      } : {
-        params: {
-          eventsPerSecond: 2,
+          eventsPerSecond: isRestricted ? 0 : 2,
         },
       },
+      db: {
+        schema: 'public',
+      },
     });
+    
+    // Disable realtime completely on web to avoid BroadcastChannel errors
+    if (isWebPlatform) {
+      try {
+        supabaseInstance.realtime.disconnect();
+      } catch {
+        // Ignore disconnect errors
+      }
+    }
     
     console.log('[Supabase] Client initialized', {
       platform: Platform.OS,
