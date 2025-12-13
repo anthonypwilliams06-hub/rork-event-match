@@ -12,7 +12,7 @@ if (!isBackendConfigured) {
 
 let supabaseAdmin: SupabaseClient | null = null;
 
-function getSupabaseAdmin(): SupabaseClient {
+export function getSupabaseAdmin(): SupabaseClient {
   if (!isBackendConfigured) {
     throw new Error('Supabase backend is not configured. Please set EXPO_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.');
   }
@@ -28,6 +28,62 @@ function getSupabaseAdmin(): SupabaseClient {
   
   return supabaseAdmin;
 }
+
+export const serverAuth = {
+  async signUp(email: string, password: string) {
+    const client = getSupabaseAdmin();
+    const { data, error } = await client.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+    
+    if (error) {
+      console.error('[ServerAuth] SignUp error:', error);
+      throw new Error(error.message);
+    }
+    
+    return { user: data.user };
+  },
+  
+  async signIn(email: string, password: string) {
+    const client = getSupabaseAdmin();
+    const { data, error } = await client.auth.signInWithPassword({
+      email,
+      password,
+    });
+    
+    if (error) {
+      console.error('[ServerAuth] SignIn error:', error);
+      throw new Error(error.message);
+    }
+    
+    return { user: data.user, session: data.session };
+  },
+  
+  async signOut(accessToken?: string) {
+    const client = getSupabaseAdmin();
+    if (accessToken) {
+      const { error } = await client.auth.admin.signOut(accessToken);
+      if (error) {
+        console.error('[ServerAuth] SignOut error:', error);
+      }
+    }
+    return { success: true };
+  },
+  
+  async resetPasswordRequest(email: string) {
+    const client = getSupabaseAdmin();
+    const { error } = await client.auth.resetPasswordForEmail(email);
+    
+    if (error) {
+      console.error('[ServerAuth] Reset password error:', error);
+      throw new Error(error.message);
+    }
+    
+    return { success: true };
+  },
+};
 
 export class SupabaseDB {
   private getClient(): SupabaseClient {

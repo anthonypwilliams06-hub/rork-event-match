@@ -147,11 +147,18 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         dateOfBirth: dateOfBirth.toISOString(),
       });
 
-      if (result.session) {
-        setSession(result.session);
+      console.log('[Auth] Signup successful, logging in...');
+      
+      const loginResult = await trpcClient.auth.login.mutate({
+        email,
+        password,
+      });
+
+      if (loginResult.session) {
+        setSession(loginResult.session);
         setUser({
-          ...result.user,
-          profile: result.user.profile ?? undefined,
+          ...loginResult.user,
+          profile: loginResult.user.profile ?? undefined,
         });
         setIsAuthenticated(true);
       }
