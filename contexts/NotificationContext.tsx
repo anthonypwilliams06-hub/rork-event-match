@@ -20,7 +20,7 @@ Notifications.setNotificationHandler({
 });
 
 export const [NotificationProvider, useNotifications] = createContextHook(() => {
-  const { user, token, isAuthenticated } = useAuth();
+  const { user, token, isAuthenticated, isLoading: authLoading } = useAuth();
   const [expoPushToken, setExpoPushToken] = useState<string>('');
   const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -39,7 +39,11 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
 
   const notificationsQuery = trpc.notifications.list.useQuery(
     { token: token || '' },
-    { enabled: isAuthenticated && !!token, refetchInterval: 30000 }
+    { 
+      enabled: !authLoading && isAuthenticated && !!token, 
+      refetchInterval: 30000,
+      retry: 1,
+    }
   );
 
   const registerTokenMutation = trpc.notifications.registerToken.useMutation();

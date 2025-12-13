@@ -12,38 +12,63 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
+    let isMounted = true;
+    let authListener: { subscription: { unsubscribe: () => void } } | null = null;
+
     if (!isSupabaseConfigured || !supabase) {
       console.warn('[Auth] Supabase not configured, skipping auth initialization');
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
       return;
     }
-
-    let authListener: { subscription: { unsubscribe: () => void } } | null = null;
 
     const setupAuth = async () => {
       try {
         await loadSession();
 
+        if (!isMounted) return;
+
         const { data } = supabase.auth.onAuthStateChange(
           async (_event, session) => {
-            console.log('Auth state changed:', _event, session?.user?.id);
+            if (!isMounted) return;
+            
+            console.log('[Auth] State changed:', _event, session?.user?.id);
             setSession(session);
             
             if (session?.user) {
-              const userProfile = await trpcClient.profile.get.query({
-                userId: session.user.id,
-              }).catch(() => null);
-              
-              setUser({
-                id: session.user.id,
-                email: session.user.email || '',
-                name: session.user.user_metadata?.name || '',
-                dateOfBirth: new Date(),
-                age: 18,
-                createdAt: new Date(session.user.created_at),
-                profile: userProfile ?? undefined,
-              });
-              setIsAuthenticated(true);
+              try {
+                const userProfile = await trpcClient.profile.get.query({
+                  userId: session.user.id,
+                }).catch(() => null);
+                
+                if (!isMounted) return;
+                
+                setUser({
+                  id: session.user.id,
+                  email: session.user.email || '',
+                  name: session.user.user_metadata?.name || '',
+                  dateOfBirth: new Date(),
+                  age: 18,
+                  createdAt: new Date(session.user.created_at),
+                  profile: userProfile ?? undefined,
+                });
+                setIsAuthenticated(true);
+              } catch (error) {
+                console.warn('[Auth] Error fetching profile:', error);
+                if (isMounted) {
+                  setUser({
+                    id: session.user.id,
+                    email: session.user.email || '',
+                    name: session.user.user_metadata?.name || '',
+                    dateOfBirth: new Date(),
+                    age: 18,
+                    createdAt: new Date(session.user.created_at),
+                    profile: undefined,
+                  });
+                  setIsAuthenticated(true);
+                }
+              }
             } else {
               setUser(null);
               setIsAuthenticated(false);
@@ -53,13 +78,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         authListener = data;
       } catch (error) {
         console.error('[Auth] Error setting up auth:', error);
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     setupAuth();
 
     return () => {
+      isMounted = false;
       if (authListener) {
         authListener.subscription.unsubscribe();
       }

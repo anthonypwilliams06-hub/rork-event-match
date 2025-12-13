@@ -19,30 +19,47 @@ export default function RoleSelectionScreen() {
   const router = useRouter();
   const { selectRole } = useApp();
   const { isAuthenticated, isLoading, user } = useAuth();
+  const [isRedirecting, setIsRedirecting] = React.useState(true);
 
   useEffect(() => {
-    if (!isLoading) {
-      if (isAuthenticated && user) {
-        if (!user.profile) {
-          router.replace('/create-profile' as any);
-        } else {
-          const role = user.profile.role;
-          if (role === 'creator') {
-            router.replace('/dashboard-creator' as any);
-          } else if (role === 'seeker') {
-            router.replace('/dashboard-seeker' as any);
-          } else {
-            router.replace('/events' as any);
-          }
-        }
-      } else {
-        router.replace('/login' as any);
-      }
+    if (isLoading) {
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, isAuthenticated, user]);
 
-  if (isLoading) {
+    const handleRedirect = () => {
+      try {
+        if (isAuthenticated && user) {
+          if (!user.profile) {
+            console.log('[Index] Redirecting to create-profile');
+            router.replace('/create-profile' as any);
+          } else {
+            const role = user.profile.role;
+            console.log('[Index] User has profile with role:', role);
+            if (role === 'creator') {
+              router.replace('/dashboard-creator' as any);
+            } else if (role === 'seeker') {
+              router.replace('/dashboard-seeker' as any);
+            } else {
+              router.replace('/events' as any);
+            }
+          }
+        } else {
+          console.log('[Index] Not authenticated, redirecting to login');
+          router.replace('/login' as any);
+        }
+      } catch (error) {
+        console.error('[Index] Redirect error:', error);
+        setIsRedirecting(false);
+      }
+    };
+
+    // Small delay to ensure navigation is ready
+    const timeout = setTimeout(handleRedirect, 100);
+    return () => clearTimeout(timeout);
+  }, [isLoading, isAuthenticated, user, router]);
+
+  // Always show loading while checking auth or redirecting
+  if (isLoading || isRedirecting) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.coral} />
