@@ -28,18 +28,35 @@ if (!isSupabaseConfigured) {
   console.warn('[Supabase] ⚠️ URL format appears invalid. Expected https://*.supabase.co');
 }
 
+let localStorageChecked = false;
+let localStorageAvailable = false;
+
 function isLocalStorageSafe(): boolean {
   if (Platform.OS !== 'web') {
     return false;
   }
+  
+  if (localStorageChecked) {
+    return localStorageAvailable;
+  }
+  
+  localStorageChecked = true;
+  localStorageAvailable = false;
   
   try {
     if (typeof window === 'undefined') {
       return false;
     }
     
-    // Check if localStorage exists and is accessible
-    const storage = window.localStorage;
+    // Some environments throw just by accessing localStorage property
+    let storage: Storage | undefined;
+    try {
+      storage = window.localStorage;
+    } catch {
+      console.log('[Supabase] localStorage access blocked');
+      return false;
+    }
+    
     if (!storage) {
       return false;
     }
@@ -49,10 +66,10 @@ function isLocalStorageSafe(): boolean {
     storage.setItem(testKey, testKey);
     const result = storage.getItem(testKey);
     storage.removeItem(testKey);
-    return result === testKey;
-  } catch (error) {
-    // Catches "The operation is insecure" and other security errors
-    console.warn('[Supabase] localStorage not available:', error);
+    localStorageAvailable = result === testKey;
+    return localStorageAvailable;
+  } catch {
+    console.log('[Supabase] localStorage not available, using memory storage');
     return false;
   }
 }
@@ -68,15 +85,12 @@ class SupabaseStorage {
     }
     
     this.storageChecked = true;
+    this.localStorageSafe = false;
     
     try {
       this.localStorageSafe = isLocalStorageSafe();
     } catch {
       this.localStorageSafe = false;
-    }
-    
-    if (!this.localStorageSafe) {
-      console.log('[Supabase] Using memory storage (localStorage unavailable)');
     }
     
     return this.localStorageSafe === true;
@@ -93,11 +107,19 @@ class SupabaseStorage {
     }
     
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        return window.localStorage;
+      if (typeof window !== 'undefined') {
+        // Double try-catch because accessing localStorage can throw
+        try {
+          const storage = window.localStorage;
+          if (storage) {
+            return storage;
+          }
+        } catch {
+          this.localStorageSafe = false;
+          this.storageChecked = true;
+        }
       }
     } catch {
-      // localStorage access threw - mark as unsafe
       this.localStorageSafe = false;
       this.storageChecked = true;
     }
@@ -194,9 +216,23 @@ function getSupabaseClient(): SupabaseClient {
   }
   
   if (!supabaseInstance) {
-    // On web, disable features that require localStorage to avoid "insecure operation" errors
     const isWeb = Platform.OS === 'web';
-    const canUseLocalStorage = !isWeb || isLocalStorageSafe();
+    
+    // For web, always start with session persistence disabled to avoid errors
+    // The storage adapter will use memory fallback anyway
+    let canUseLocalStorage = false;
+    
+    if (!isWeb) {
+      // Native platforms can always use AsyncStorage
+      canUseLocalStorage = true;
+    } else {
+      // For web, safely check localStorage availability
+      try {
+        canUseLocalStorage = isLocalStorageSafe();
+      } catch {
+        canUseLocalStorage = false;
+      }
+    }
     
     supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
