@@ -1,27 +1,50 @@
 -- =============================================
--- SIMPLIFIED SUPABASE RLS POLICIES THAT WORK
+-- SECURE SUPABASE RLS POLICIES - PRODUCTION READY
 -- =============================================
 -- Run this ENTIRE script in your Supabase SQL Editor
+-- This fixes the "Operation is Insecure" error while maintaining security
 
--- First, disable RLS temporarily to clean up
-ALTER TABLE users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE events DISABLE ROW LEVEL SECURITY;
-ALTER TABLE favorites DISABLE ROW LEVEL SECURITY;
-ALTER TABLE messages DISABLE ROW LEVEL SECURITY;
-ALTER TABLE conversations DISABLE ROW LEVEL SECURITY;
-ALTER TABLE ratings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE blocked_users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE reports DISABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications DISABLE ROW LEVEL SECURITY;
-ALTER TABLE notification_settings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE event_safety DISABLE ROW LEVEL SECURITY;
-ALTER TABLE event_attendees DISABLE ROW LEVEL SECURITY;
-ALTER TABLE verification_requests DISABLE ROW LEVEL SECURITY;
-ALTER TABLE payments DISABLE ROW LEVEL SECURITY;
-ALTER TABLE payouts DISABLE ROW LEVEL SECURITY;
+-- =============================================
+-- STEP 1: CREATE USER AUTO-CREATION TRIGGER
+-- =============================================
+-- This solves the chicken-and-egg problem during signup
 
--- Drop ALL existing policies
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER 
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Automatically create user record when someone signs up
+  INSERT INTO public.users (id, email, name, date_of_birth, age)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'name', 'New User'),
+    NOW() - INTERVAL '18 years',
+    18
+  )
+  ON CONFLICT (id) DO NOTHING;
+  
+  RETURN NEW;
+END;
+$$;
+
+-- Drop old trigger if exists and create new one
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW 
+  EXECUTE FUNCTION public.handle_new_user();
+
+
+-- =============================================
+-- STEP 2: CLEAN UP OLD POLICIES
+-- =============================================
+-- Remove all existing policies to start fresh
+
 DO $$ 
 DECLARE
     r RECORD;
@@ -31,161 +54,369 @@ BEGIN
     END LOOP;
 END $$;
 
--- Re-enable RLS
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE blocked_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notification_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE event_safety ENABLE ROW LEVEL SECURITY;
-ALTER TABLE event_attendees ENABLE ROW LEVEL SECURITY;
-ALTER TABLE verification_requests ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payouts ENABLE ROW LEVEL SECURITY;
 
 -- =============================================
--- USERS TABLE - Simple policies
+-- STEP 3: USERS TABLE POLICIES
 -- =============================================
-CREATE POLICY "users_select" ON users FOR SELECT USING (true);
-CREATE POLICY "users_insert" ON users FOR INSERT WITH CHECK (true);
-CREATE POLICY "users_update" ON users FOR UPDATE USING (auth.uid()::text = id::text);
-CREATE POLICY "users_delete" ON users FOR DELETE USING (auth.uid()::text = id::text);
+-- Public can read basic user info (needed for event creators, profiles)
+CREATE POLICY "users_public_read" ON users
+  FOR SELECT 
+  USING (true);
+
+-- Users can only update their own data
+CREATE POLICY "users_update_own" ON users
+  FOR UPDATE 
+  USING (auth.uid() = id);
+
+-- Users can only delete their own account
+CREATE POLICY "users_delete_own" ON users
+  FOR DELETE 
+  USING (auth.uid() = id);
+
+-- NO INSERT POLICY - the trigger handles user creation
+
 
 -- =============================================
--- PROFILES TABLE
+-- PROFILES TABLE POLICIES
 -- =============================================
-CREATE POLICY "profiles_select" ON profiles FOR SELECT USING (true);
-CREATE POLICY "profiles_insert" ON profiles FOR INSERT WITH CHECK (true);
-CREATE POLICY "profiles_update" ON profiles FOR UPDATE USING (auth.uid()::text = user_id::text);
-CREATE POLICY "profiles_delete" ON profiles FOR DELETE USING (auth.uid()::text = user_id::text);
+-- Anyone can view profiles (needed for matchmaking/browsing)
+CREATE POLICY "profiles_public_read" ON profiles
+  FOR SELECT 
+  USING (true);
+
+-- Users can only insert their own profile
+CREATE POLICY "profiles_insert_own" ON profiles
+  FOR INSERT 
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can only update their own profile
+CREATE POLICY "profiles_update_own" ON profiles
+  FOR UPDATE 
+  USING (auth.uid() = user_id);
+
+-- Users can only delete their own profile
+CREATE POLICY "profiles_delete_own" ON profiles
+  FOR DELETE 
+  USING (auth.uid() = user_id);
+
 
 -- =============================================
--- EVENTS TABLE
+-- EVENTS TABLE POLICIES
 -- =============================================
-CREATE POLICY "events_select" ON events FOR SELECT USING (true);
-CREATE POLICY "events_insert" ON events FOR INSERT WITH CHECK (true);
-CREATE POLICY "events_update" ON events FOR UPDATE USING (auth.uid()::text = creator_id::text);
-CREATE POLICY "events_delete" ON events FOR DELETE USING (auth.uid()::text = creator_id::text);
+-- Anyone can view non-draft, non-cancelled events
+CREATE POLICY "events_public_read" ON events
+  FOR SELECT 
+  USING (is_draft = false AND status != 'cancelled');
+
+-- Creators can view their own draft events
+CREATE POLICY "events_creator_read_drafts" ON events
+  FOR SELECT 
+  USING (auth.uid() = creator_id);
+
+-- Only authenticated users can create events as themselves
+CREATE POLICY "events_insert_as_creator" ON events
+  FOR INSERT 
+  WITH CHECK (auth.uid() = creator_id);
+
+-- Only event creators can update their own events
+CREATE POLICY "events_update_own" ON events
+  FOR UPDATE 
+  USING (auth.uid() = creator_id);
+
+-- Only event creators can delete their own events
+CREATE POLICY "events_delete_own" ON events
+  FOR DELETE 
+  USING (auth.uid() = creator_id);
+
 
 -- =============================================
--- FAVORITES TABLE
+-- FAVORITES TABLE POLICIES
 -- =============================================
-CREATE POLICY "favorites_select" ON favorites FOR SELECT USING (true);
-CREATE POLICY "favorites_insert" ON favorites FOR INSERT WITH CHECK (true);
-CREATE POLICY "favorites_delete" ON favorites FOR DELETE USING (auth.uid()::text = user_id::text);
+-- Users can only see their own favorites
+CREATE POLICY "favorites_read_own" ON favorites
+  FOR SELECT 
+  USING (auth.uid() = user_id);
+
+-- Users can only add favorites for themselves
+CREATE POLICY "favorites_insert_own" ON favorites
+  FOR INSERT 
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can only delete their own favorites
+CREATE POLICY "favorites_delete_own" ON favorites
+  FOR DELETE 
+  USING (auth.uid() = user_id);
+
 
 -- =============================================
--- MESSAGES TABLE
+-- MESSAGES TABLE POLICIES
 -- =============================================
-CREATE POLICY "messages_select" ON messages FOR SELECT USING (true);
-CREATE POLICY "messages_insert" ON messages FOR INSERT WITH CHECK (true);
-CREATE POLICY "messages_update" ON messages FOR UPDATE USING (
-  auth.uid()::text = sender_id::text OR auth.uid()::text = receiver_id::text
-);
+-- Users can only read messages they sent or received
+CREATE POLICY "messages_read_participant" ON messages
+  FOR SELECT 
+  USING (
+    auth.uid() = sender_id OR 
+    auth.uid() = receiver_id
+  );
+
+-- Users can only send messages as themselves
+CREATE POLICY "messages_insert_as_sender" ON messages
+  FOR INSERT 
+  WITH CHECK (auth.uid() = sender_id);
+
+-- Users can update messages they're part of (mark as read)
+CREATE POLICY "messages_update_participant" ON messages
+  FOR UPDATE 
+  USING (
+    auth.uid() = sender_id OR 
+    auth.uid() = receiver_id
+  );
+
 
 -- =============================================
--- CONVERSATIONS TABLE
+-- CONVERSATIONS TABLE POLICIES
 -- =============================================
-CREATE POLICY "conversations_select" ON conversations FOR SELECT USING (true);
-CREATE POLICY "conversations_insert" ON conversations FOR INSERT WITH CHECK (true);
-CREATE POLICY "conversations_update" ON conversations FOR UPDATE USING (true);
+-- Users can only see conversations they're part of
+CREATE POLICY "conversations_read_participant" ON conversations
+  FOR SELECT 
+  USING (auth.uid()::text = ANY(participant_ids));
+
+-- Users can create conversations they're part of
+CREATE POLICY "conversations_insert_participant" ON conversations
+  FOR INSERT 
+  WITH CHECK (auth.uid()::text = ANY(participant_ids));
+
+-- Users can update conversations they're part of
+CREATE POLICY "conversations_update_participant" ON conversations
+  FOR UPDATE 
+  USING (auth.uid()::text = ANY(participant_ids));
+
 
 -- =============================================
--- RATINGS TABLE
+-- RATINGS TABLE POLICIES
 -- =============================================
-CREATE POLICY "ratings_select" ON ratings FOR SELECT USING (true);
-CREATE POLICY "ratings_insert" ON ratings FOR INSERT WITH CHECK (true);
-CREATE POLICY "ratings_update" ON ratings FOR UPDATE USING (auth.uid()::text = reviewer_id::text);
-CREATE POLICY "ratings_delete" ON ratings FOR DELETE USING (auth.uid()::text = reviewer_id::text);
+-- Anyone can read ratings (public reviews)
+CREATE POLICY "ratings_public_read" ON ratings
+  FOR SELECT 
+  USING (true);
+
+-- Users can only create ratings as themselves
+CREATE POLICY "ratings_insert_as_reviewer" ON ratings
+  FOR INSERT 
+  WITH CHECK (auth.uid() = reviewer_id);
+
+-- Users can only update their own ratings
+CREATE POLICY "ratings_update_own" ON ratings
+  FOR UPDATE 
+  USING (auth.uid() = reviewer_id);
+
+-- Users can only delete their own ratings
+CREATE POLICY "ratings_delete_own" ON ratings
+  FOR DELETE 
+  USING (auth.uid() = reviewer_id);
+
 
 -- =============================================
--- BLOCKED_USERS TABLE
+-- BLOCKED USERS TABLE POLICIES
 -- =============================================
-CREATE POLICY "blocked_select" ON blocked_users FOR SELECT USING (auth.uid()::text = blocker_id::text);
-CREATE POLICY "blocked_insert" ON blocked_users FOR INSERT WITH CHECK (true);
-CREATE POLICY "blocked_delete" ON blocked_users FOR DELETE USING (auth.uid()::text = blocker_id::text);
+-- Users can only see who they've blocked
+CREATE POLICY "blocked_users_read_own" ON blocked_users
+  FOR SELECT 
+  USING (auth.uid() = blocker_id);
+
+-- Users can only block others as themselves
+CREATE POLICY "blocked_users_insert_as_blocker" ON blocked_users
+  FOR INSERT 
+  WITH CHECK (auth.uid() = blocker_id);
+
+-- Users can only unblock their own blocks
+CREATE POLICY "blocked_users_delete_own" ON blocked_users
+  FOR DELETE 
+  USING (auth.uid() = blocker_id);
+
 
 -- =============================================
--- REPORTS TABLE
+-- REPORTS TABLE POLICIES
 -- =============================================
-CREATE POLICY "reports_select" ON reports FOR SELECT USING (auth.uid()::text = reporter_id::text);
-CREATE POLICY "reports_insert" ON reports FOR INSERT WITH CHECK (true);
+-- Users can only see their own reports
+CREATE POLICY "reports_read_own" ON reports
+  FOR SELECT 
+  USING (auth.uid() = reporter_id);
+
+-- Users can only create reports as themselves
+CREATE POLICY "reports_insert_as_reporter" ON reports
+  FOR INSERT 
+  WITH CHECK (auth.uid() = reporter_id);
+
 
 -- =============================================
--- NOTIFICATIONS TABLE
+-- NOTIFICATIONS TABLE POLICIES
 -- =============================================
-CREATE POLICY "notifications_select" ON notifications FOR SELECT USING (true);
-CREATE POLICY "notifications_insert" ON notifications FOR INSERT WITH CHECK (true);
-CREATE POLICY "notifications_update" ON notifications FOR UPDATE USING (auth.uid()::text = user_id::text);
-CREATE POLICY "notifications_delete" ON notifications FOR DELETE USING (auth.uid()::text = user_id::text);
+-- Users can only see their own notifications
+CREATE POLICY "notifications_read_own" ON notifications
+  FOR SELECT 
+  USING (auth.uid() = user_id);
+
+-- System can create notifications (via service role or trigger)
+CREATE POLICY "notifications_insert_for_user" ON notifications
+  FOR INSERT 
+  WITH CHECK (true);
+
+-- Users can update their own notifications (mark as read)
+CREATE POLICY "notifications_update_own" ON notifications
+  FOR UPDATE 
+  USING (auth.uid() = user_id);
+
+-- Users can delete their own notifications
+CREATE POLICY "notifications_delete_own" ON notifications
+  FOR DELETE 
+  USING (auth.uid() = user_id);
+
 
 -- =============================================
--- NOTIFICATION_SETTINGS TABLE
+-- NOTIFICATION SETTINGS TABLE POLICIES
 -- =============================================
-CREATE POLICY "notif_settings_select" ON notification_settings FOR SELECT USING (true);
-CREATE POLICY "notif_settings_insert" ON notification_settings FOR INSERT WITH CHECK (true);
-CREATE POLICY "notif_settings_update" ON notification_settings FOR UPDATE USING (auth.uid()::text = user_id::text);
+-- Users can only see their own settings
+CREATE POLICY "notification_settings_read_own" ON notification_settings
+  FOR SELECT 
+  USING (auth.uid() = user_id);
+
+-- Users can only create their own settings
+CREATE POLICY "notification_settings_insert_own" ON notification_settings
+  FOR INSERT 
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can only update their own settings
+CREATE POLICY "notification_settings_update_own" ON notification_settings
+  FOR UPDATE 
+  USING (auth.uid() = user_id);
+
 
 -- =============================================
--- EVENT_SAFETY TABLE
+-- EVENT SAFETY TABLE POLICIES
 -- =============================================
-CREATE POLICY "safety_select" ON event_safety FOR SELECT USING (true);
-CREATE POLICY "safety_insert" ON event_safety FOR INSERT WITH CHECK (true);
-CREATE POLICY "safety_update" ON event_safety FOR UPDATE USING (auth.uid()::text = user_id::text);
+-- Users can only see their own safety records
+CREATE POLICY "event_safety_read_own" ON event_safety
+  FOR SELECT 
+  USING (auth.uid() = user_id);
+
+-- Users can only create safety records for themselves
+CREATE POLICY "event_safety_insert_own" ON event_safety
+  FOR INSERT 
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can only update their own safety records
+CREATE POLICY "event_safety_update_own" ON event_safety
+  FOR UPDATE 
+  USING (auth.uid() = user_id);
+
 
 -- =============================================
--- EVENT_ATTENDEES TABLE
+-- EVENT ATTENDEES TABLE POLICIES
 -- =============================================
-CREATE POLICY "attendees_select" ON event_attendees FOR SELECT USING (true);
-CREATE POLICY "attendees_insert" ON event_attendees FOR INSERT WITH CHECK (true);
-CREATE POLICY "attendees_update" ON event_attendees FOR UPDATE USING (auth.uid()::text = user_id::text);
-CREATE POLICY "attendees_delete" ON event_attendees FOR DELETE USING (auth.uid()::text = user_id::text);
+-- Anyone can see who's attending events (public)
+CREATE POLICY "event_attendees_public_read" ON event_attendees
+  FOR SELECT 
+  USING (true);
+
+-- Users can only RSVP as themselves
+CREATE POLICY "event_attendees_insert_own" ON event_attendees
+  FOR INSERT 
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can only update their own attendance
+CREATE POLICY "event_attendees_update_own" ON event_attendees
+  FOR UPDATE 
+  USING (auth.uid() = user_id);
+
+-- Users can only remove their own attendance
+CREATE POLICY "event_attendees_delete_own" ON event_attendees
+  FOR DELETE 
+  USING (auth.uid() = user_id);
+
 
 -- =============================================
--- VERIFICATION_REQUESTS TABLE
+-- VERIFICATION REQUESTS TABLE POLICIES
 -- =============================================
-CREATE POLICY "verification_select" ON verification_requests FOR SELECT USING (auth.uid()::text = user_id::text);
-CREATE POLICY "verification_insert" ON verification_requests FOR INSERT WITH CHECK (true);
+-- Users can only see their own verification requests
+CREATE POLICY "verification_requests_read_own" ON verification_requests
+  FOR SELECT 
+  USING (auth.uid() = user_id);
+
+-- Users can only create verification requests for themselves
+CREATE POLICY "verification_requests_insert_own" ON verification_requests
+  FOR INSERT 
+  WITH CHECK (auth.uid() = user_id);
+
 
 -- =============================================
--- PAYMENTS TABLE
+-- PAYMENTS TABLE POLICIES
 -- =============================================
-CREATE POLICY "payments_select" ON payments FOR SELECT USING (auth.uid()::text = user_id::text);
-CREATE POLICY "payments_insert" ON payments FOR INSERT WITH CHECK (true);
+-- Users can only see their own payments
+CREATE POLICY "payments_read_own" ON payments
+  FOR SELECT 
+  USING (auth.uid() = user_id);
+
+-- Users can only create payments for themselves
+CREATE POLICY "payments_insert_own" ON payments
+  FOR INSERT 
+  WITH CHECK (auth.uid() = user_id);
+
 
 -- =============================================
--- PAYOUTS TABLE
+-- PAYOUTS TABLE POLICIES
 -- =============================================
-CREATE POLICY "payouts_select" ON payouts FOR SELECT USING (auth.uid()::text = creator_id::text);
-CREATE POLICY "payouts_insert" ON payouts FOR INSERT WITH CHECK (true);
+-- Creators can only see their own payouts
+CREATE POLICY "payouts_read_own" ON payouts
+  FOR SELECT 
+  USING (auth.uid() = creator_id);
+
+-- System creates payouts (via service role)
+-- No user INSERT policy needed
+
 
 -- =============================================
--- GRANT PERMISSIONS
+-- GRANT TABLE PERMISSIONS
 -- =============================================
-GRANT ALL ON users TO anon, authenticated;
-GRANT ALL ON profiles TO anon, authenticated;
-GRANT ALL ON events TO anon, authenticated;
-GRANT ALL ON favorites TO anon, authenticated;
-GRANT ALL ON messages TO anon, authenticated;
-GRANT ALL ON conversations TO anon, authenticated;
-GRANT ALL ON ratings TO anon, authenticated;
-GRANT ALL ON blocked_users TO anon, authenticated;
-GRANT ALL ON reports TO anon, authenticated;
-GRANT ALL ON notifications TO anon, authenticated;
-GRANT ALL ON notification_settings TO anon, authenticated;
-GRANT ALL ON event_safety TO anon, authenticated;
-GRANT ALL ON event_attendees TO anon, authenticated;
-GRANT ALL ON verification_requests TO anon, authenticated;
-GRANT ALL ON payments TO anon, authenticated;
-GRANT ALL ON payouts TO anon, authenticated;
+-- Grant necessary permissions to authenticated users
+GRANT SELECT, INSERT, UPDATE, DELETE ON users TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON events TO authenticated;
+GRANT SELECT, INSERT, DELETE ON favorites TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON messages TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON conversations TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ratings TO authenticated;
+GRANT SELECT, INSERT, DELETE ON blocked_users TO authenticated;
+GRANT SELECT, INSERT ON reports TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON notifications TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON notification_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON event_safety TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON event_attendees TO authenticated;
+GRANT SELECT, INSERT ON verification_requests TO authenticated;
+GRANT SELECT, INSERT ON payments TO authenticated;
+GRANT SELECT ON payouts TO authenticated;
+
+-- Grant read-only access to anon users for public data
+GRANT SELECT ON users TO anon;
+GRANT SELECT ON profiles TO anon;
+GRANT SELECT ON events TO anon;
+GRANT SELECT ON ratings TO anon;
+GRANT SELECT ON event_attendees TO anon;
+
 
 -- =============================================
--- VERIFY POLICIES WERE CREATED
+-- VERIFY SETUP
 -- =============================================
-SELECT tablename, policyname, cmd FROM pg_policies WHERE schemaname = 'public' ORDER BY tablename;
+-- Run this query to verify all policies are in place:
+SELECT 
+  tablename, 
+  policyname, 
+  cmd,
+  CASE 
+    WHEN roles = '{authenticated}' THEN 'authenticated'
+    WHEN roles = '{anon}' THEN 'anon'
+    ELSE roles::text
+  END as applies_to
+FROM pg_policies 
+WHERE schemaname = 'public'
+ORDER BY tablename, cmd, policyname;
