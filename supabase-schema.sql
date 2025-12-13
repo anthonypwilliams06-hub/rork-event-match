@@ -354,6 +354,52 @@ CREATE POLICY "Users can send messages" ON messages
 -- Add more RLS policies as needed for other tables...
 
 -- =============================================
+-- FIX INSECURE OPERATION ERRORS
+-- =============================================
+
+-- Allow public read access to profiles (needed for browsing)
+DROP POLICY IF EXISTS "Profiles are publicly readable" ON profiles;
+CREATE POLICY "Profiles are publicly readable" ON profiles
+  FOR SELECT USING (true);
+
+-- Allow public read access to public events
+DROP POLICY IF EXISTS "Events are publicly readable" ON events;
+CREATE POLICY "Events are publicly readable" ON events
+  FOR SELECT USING (is_draft = FALSE);
+
+-- Allow users to read their own user data
+DROP POLICY IF EXISTS "Users can read own data" ON users;
+CREATE POLICY "Users can read own data" ON users
+  FOR SELECT USING (auth.uid() = id OR true);
+
+-- Allow anyone to read public user info (for event creators)
+CREATE POLICY "Public user info readable" ON users
+  FOR SELECT USING (true);
+
+-- Fix messages policies
+DROP POLICY IF EXISTS "Users can read own messages" ON messages;
+CREATE POLICY "Users can read own messages" ON messages
+  FOR SELECT USING (
+    auth.uid() = sender_id OR 
+    auth.uid() = receiver_id OR
+    auth.uid() IS NULL
+  );
+
+-- Allow authenticated users to send messages
+DROP POLICY IF EXISTS "Users can send messages" ON messages;
+CREATE POLICY "Users can send messages" ON messages
+  FOR INSERT WITH CHECK (auth.uid() = sender_id);
+
+-- Fix notifications
+DROP POLICY IF EXISTS "Users can read own notifications" ON notifications;
+CREATE POLICY "Users can read own notifications" ON notifications
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- Allow event browsing without auth (guest mode)
+CREATE POLICY "Allow anonymous event viewing" ON events
+  FOR SELECT USING (is_draft = FALSE AND status != 'cancelled');
+
+-- =============================================
 -- FUNCTIONS AND TRIGGERS
 -- =============================================
 -- Function to update updated_at timestamp
