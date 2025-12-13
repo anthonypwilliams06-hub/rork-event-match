@@ -6,9 +6,27 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const isRestrictedWebContext = (): boolean => {
   if (Platform.OS !== 'web') return false;
   
-  // Always treat web as restricted to avoid BroadcastChannel/LockManager errors
-  // These APIs are not available in iframes or certain security contexts
-  return true;
+  try {
+    if (typeof window === 'undefined') return true;
+    
+    const isIframe = window.self !== window.top;
+    const isInsecure = window.location.protocol !== 'https:' && 
+                       window.location.hostname !== 'localhost';
+    
+    if (isIframe || isInsecure) return true;
+    
+    try {
+      const testKey = '__storage_test__';
+      window.localStorage.setItem(testKey, testKey);
+      window.localStorage.removeItem(testKey);
+    } catch {
+      return true;
+    }
+    
+    return false;
+  } catch {
+    return true;
+  }
 };
 
 function getSupabaseUrl(): string {
@@ -152,10 +170,10 @@ function getSupabaseClient(): SupabaseClient {
     supabaseInstance = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
       auth: {
         autoRefreshToken: !isWebPlatform,
-        persistSession: !isWebPlatform,
+        persistSession: !isRestricted,
         detectSessionInUrl: false,
         storage: supabaseStorage,
-        flowType: 'implicit',
+        flowType: 'pkce',
         lock: noOpLock,
         storageKey: 'supabase-auth-token',
         debug: false,
@@ -175,16 +193,19 @@ function getSupabaseClient(): SupabaseClient {
       },
     });
     
-    // Disable realtime completely to avoid BroadcastChannel errors
-    try {
-      supabaseInstance.realtime.disconnect();
-    } catch {
-      // Ignore disconnect errors
+    if (isWebPlatform) {
+      setTimeout(() => {
+        try {
+          supabaseInstance?.realtime?.disconnect();
+        } catch {
+        }
+      }, 0);
     }
     
     console.log('[Supabase] Client initialized', {
       platform: Platform.OS,
       restrictedContext: isRestricted,
+      realtimeDisabled: isWebPlatform,
     });
   }
   
