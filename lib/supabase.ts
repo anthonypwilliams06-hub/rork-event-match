@@ -5,26 +5,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const isRestrictedWebContext = (): boolean => {
   if (Platform.OS !== 'web') return false;
-  try {
-    if (typeof window === 'undefined') return true;
-    
-    // Check localStorage
-    const testKey = '__storage_test__';
-    window.localStorage.setItem(testKey, testKey);
-    window.localStorage.removeItem(testKey);
-    
-    // Check BroadcastChannel
-    try {
-      const bc = new BroadcastChannel('__test__');
-      bc.close();
-    } catch {
-      return true;
-    }
-    
-    return false;
-  } catch {
-    return true;
-  }
+  
+  // Always treat web as restricted to avoid BroadcastChannel/LockManager errors
+  // These APIs are not available in iframes or certain security contexts
+  return true;
 };
 
 function getSupabaseUrl(): string {
@@ -167,12 +151,12 @@ function getSupabaseClient(): SupabaseClient {
     
     supabaseInstance = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
       auth: {
-        autoRefreshToken: !isRestricted && !isWebPlatform,
-        persistSession: !isRestricted,
+        autoRefreshToken: !isWebPlatform,
+        persistSession: !isWebPlatform,
         detectSessionInUrl: false,
         storage: supabaseStorage,
         flowType: 'implicit',
-        lock: isWebPlatform ? noOpLock : undefined,
+        lock: noOpLock,
         storageKey: 'supabase-auth-token',
         debug: false,
       },
@@ -183,7 +167,7 @@ function getSupabaseClient(): SupabaseClient {
       },
       realtime: {
         params: {
-          eventsPerSecond: isRestricted ? 0 : 2,
+          eventsPerSecond: 0,
         },
       },
       db: {
@@ -191,13 +175,11 @@ function getSupabaseClient(): SupabaseClient {
       },
     });
     
-    // Disable realtime completely on web to avoid BroadcastChannel errors
-    if (isWebPlatform) {
-      try {
-        supabaseInstance.realtime.disconnect();
-      } catch {
-        // Ignore disconnect errors
-      }
+    // Disable realtime completely to avoid BroadcastChannel errors
+    try {
+      supabaseInstance.realtime.disconnect();
+    } catch {
+      // Ignore disconnect errors
     }
     
     console.log('[Supabase] Client initialized', {
