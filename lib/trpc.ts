@@ -6,15 +6,13 @@ import superjson from "superjson";
 export const trpc = createTRPCReact<AppRouter>();
 
 const getBaseUrl = () => {
-  // For Rork: use the same origin as the app
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
+  const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+  if (apiUrl) {
+    return apiUrl;
   }
   
-  // Fallback for server-side rendering
-  const url = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
-  if (url) {
-    return url;
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
   }
   
   return 'http://localhost:3000';
