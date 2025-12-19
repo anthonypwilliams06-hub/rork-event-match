@@ -140,6 +140,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const signup = async (email: string, password: string, name: string, dateOfBirth: Date) => {
     try {
+      console.log('[Auth] Starting signup for:', email);
+      console.log('[Auth] Data:', { email, name, dateOfBirth: dateOfBirth.toISOString() });
+      
       const result = await trpcClient.auth.signup.mutate({
         email,
         password,
@@ -147,12 +150,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         dateOfBirth: dateOfBirth.toISOString(),
       });
 
-      console.log('[Auth] Signup successful, logging in...');
+      console.log('[Auth] Signup successful:', result);
+      console.log('[Auth] Now logging in...');
       
       const loginResult = await trpcClient.auth.login.mutate({
         email,
         password,
       });
+
+      console.log('[Auth] Login successful:', loginResult);
 
       if (loginResult.session) {
         setSession(loginResult.session);
@@ -165,7 +171,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       return result;
     } catch (error) {
-      console.error('Signup error:', error);
+      console.error('[Auth] ❌ Signup error details:', error);
+      
+      if (error instanceof Error) {
+        console.error('[Auth] Error message:', error.message);
+        console.error('[Auth] Error stack:', error.stack);
+      }
+      
       throw error;
     }
   };
