@@ -4,7 +4,7 @@ import { User } from '@/types';
 import { trpcClient } from '@/lib/trpc';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { signupViaEdgeFunction } from '@/lib/authSignup';
+
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
   const [user, setUser] = useState<User | null>(null);
@@ -144,14 +144,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       console.log('[Auth] Starting signup for:', email);
       console.log('[Auth] Data:', { email, name, dateOfBirth: dateOfBirth.toISOString() });
       
-      const result = await signupViaEdgeFunction({
+      const result = await trpcClient.auth.signup.mutate({
         email,
         password,
         name,
         dateOfBirth: dateOfBirth.toISOString(),
       });
 
-      console.log('[Auth] Signup successful via Edge Function:', result);
+      console.log('[Auth] Signup successful:', result);
       console.log('[Auth] Now logging in...');
       
       const loginResult = await trpcClient.auth.login.mutate({
