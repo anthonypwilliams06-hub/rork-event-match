@@ -19,12 +19,16 @@ export async function invokeEdgeFunction<TResponse = any>(
   return data as TResponse;
 }
 
-export async function pingHealthcheck(payload: Record<string, unknown>) {
+export async function pingHealthcheck(payload?: Record<string, unknown>) {
   return invokeEdgeFunction('healthcheck', payload);
 }
 
-export async function callBackendFunction(payload: Record<string, unknown>) {
+export async function callBackendFunction(payload?: Record<string, unknown>) {
   return invokeEdgeFunction('backend', payload);
+}
+
+export async function testSignUp(payload: { email: string; password: string; name: string; dateOfBirth?: string }) {
+  return invokeEdgeFunction('sign_up', payload);
 }
 
 type EdgeFunctionResponse<T = any> = {

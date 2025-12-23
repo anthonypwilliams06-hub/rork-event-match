@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { signupViaEdgeFunction } from '@/lib/authSignup';
+import { callBackendFunction, pingHealthcheck } from '@/lib/functions';
 
 export default function TestEdgeFunctionScreen() {
   const router = useRouter();
@@ -112,6 +113,7 @@ export default function TestEdgeFunctionScreen() {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${anonKey}`,
+          'apikey': anonKey || '',
         },
         body: JSON.stringify({
           email: testEmail,
@@ -130,6 +132,38 @@ export default function TestEdgeFunctionScreen() {
       } else {
         addLog(`❌ Direct fetch failed with status ${response.status}`);
       }
+    } catch (err) {
+      addLog(`❌ Exception: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const testBackendFunction = async () => {
+    setIsLoading(true);
+    addLog('=== Testing Backend Function ===');
+    
+    try {
+      addLog('Calling backend function...');
+      const result = await callBackendFunction({ test: 'data', timestamp: Date.now() });
+      addLog(`✅ Backend function success!`);
+      addLog(`Response: ${JSON.stringify(result, null, 2)}`);
+    } catch (err) {
+      addLog(`❌ Exception: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const testHealthcheck = async () => {
+    setIsLoading(true);
+    addLog('=== Testing Healthcheck Function ===');
+    
+    try {
+      addLog('Calling healthcheck function...');
+      const result = await pingHealthcheck({ ping: 'test' });
+      addLog(`✅ Healthcheck success!`);
+      addLog(`Response: ${JSON.stringify(result, null, 2)}`);
     } catch (err) {
       addLog(`❌ Exception: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -191,10 +225,26 @@ export default function TestEdgeFunctionScreen() {
 
           <TouchableOpacity
             style={styles.testButton}
+            onPress={testBackendFunction}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>2. Test Backend Function</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.testButton}
+            onPress={testHealthcheck}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>3. Test Healthcheck</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.testButton}
             onPress={testEdgeFunctionDirect}
             disabled={isLoading}
           >
-            <Text style={styles.buttonText}>2. Test Edge Function (Direct)</Text>
+            <Text style={styles.buttonText}>4. Test sign_up (Direct)</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -202,7 +252,7 @@ export default function TestEdgeFunctionScreen() {
             onPress={testViaHelper}
             disabled={isLoading}
           >
-            <Text style={styles.buttonText}>3. Test Via Helper</Text>
+            <Text style={styles.buttonText}>5. Test Via Helper</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -210,7 +260,7 @@ export default function TestEdgeFunctionScreen() {
             onPress={testFetchDirect}
             disabled={isLoading}
           >
-            <Text style={styles.buttonText}>4. Test Direct Fetch</Text>
+            <Text style={styles.buttonText}>6. Test Direct Fetch</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
