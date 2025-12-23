@@ -12,7 +12,7 @@ export async function signupViaEdgeFunction(input: SignupInput) {
 
   console.log('[Auth] Calling Edge Function signup with:', { email, name, dateOfBirth });
 
-  const { data, error } = await supabase.functions.invoke('signup', {
+  const { data, error } = await supabase.functions.invoke('sign_up', {
     body: { email, password, name, dateOfBirth },
   });
 
