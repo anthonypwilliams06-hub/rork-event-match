@@ -45,7 +45,7 @@ export default function TestEdgeFunctionScreen() {
       }
 
       addLog('Calling edge function with test data...');
-      const { data, error } = await supabase.functions.invoke('signup', {
+      const { data, error } = await supabase.functions.invoke('sign_up', {
         body: {
           email: testEmail,
           password: testPassword,
@@ -100,11 +100,12 @@ export default function TestEdgeFunctionScreen() {
     addLog('=== Testing Direct Fetch ===');
     
     try {
-      const url = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/signup`;
+      const url = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/sign_up`;
       const anonKey = process.env.EXPO_PUBLIC_SUPABASE_KEY;
       
       addLog(`URL: ${url}`);
       addLog(`Has anon key: ${!!anonKey}`);
+      addLog(`Anon key preview: ${anonKey?.substring(0, 20)}...`);
       
       const response = await fetch(url, {
         method: 'POST',
