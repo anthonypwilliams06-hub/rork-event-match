@@ -6,6 +6,12 @@ import superjson from "superjson";
 export const trpc = createTRPCReact<AppRouter>();
 
 const getBaseUrl = () => {
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  if (supabaseUrl) {
+    const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+    return `https://${projectRef}.functions.supabase.co/backend`;
+  }
+  
   const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
   if (apiUrl) {
     return apiUrl;
@@ -24,11 +30,27 @@ export const trpcClient = trpc.createClient({
       url: `${getBaseUrl()}/api/trpc`,
       transformer: superjson,
       fetch: async (url, options) => {
+        const anonKey = process.env.EXPO_PUBLIC_SUPABASE_KEY;
+        
+        const headers = {
+          ...options?.headers as Record<string, string>,
+        };
+        
+        if (anonKey) {
+          headers['Authorization'] = `Bearer ${anonKey}`;
+          headers['apikey'] = anonKey;
+        }
+        
+        const modifiedOptions = {
+          ...options,
+          headers,
+        };
+        
         console.log('[tRPC] Request:', url);
         console.log('[tRPC] Base URL:', getBaseUrl());
         
         try {
-          const response = await fetch(url, options);
+          const response = await fetch(url, modifiedOptions);
           console.log('[tRPC] Response status:', response.status);
           console.log('[tRPC] Response headers:', {
             contentType: response.headers.get('content-type'),

@@ -1,0 +1,14 @@
+{
+  "imports": {
+    "hono": "https://deno.land/x/hono@v4.0.0/mod.ts",
+    "hono/": "https://deno.land/x/hono@v4.0.0/",
+    "@hono/trpc-server": "npm:@hono/trpc-server@^0.3.2",
+    "@trpc/server": "npm:@trpc/server@^10.45.0",
+    "superjson": "npm:superjson@^2.2.1",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.89.0"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window"],
+    "types": ["https://deno.land/x/deno@v1.40.0/cli/tsc/dts/lib.deno.window.d.ts"]
+  }
+}
