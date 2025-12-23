@@ -1,9 +1,9 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect } from 'react';
 import { User } from '@/types';
-import { trpcClient } from '@/lib/trpc';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { Session } from '@supabase/supabase-js';
+import { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import { signupViaEdgeFunction } from '@/lib/authSignup';
 
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -39,21 +39,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             
             if (session?.user) {
               try {
-                const userProfile = await trpcClient.profile.get.query({
-                  userId: session.user.id,
-                }).catch(() => null);
-                
+                const profile = null;
                 if (!isMounted) return;
-                
-                setUser({
-                  id: session.user.id,
-                  email: session.user.email || '',
-                  name: session.user.user_metadata?.name || '',
-                  dateOfBirth: new Date(),
-                  age: 18,
-                  createdAt: new Date(session.user.created_at),
-                  profile: userProfile ?? undefined,
-                });
+                setUser(mapSupabaseUser(session.user, profile ?? undefined));
                 setIsAuthenticated(true);
               } catch (error) {
                 console.warn('[Auth] Error fetching profile:', error);
@@ -115,19 +103,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         console.log('Session found:', session.user.id);
         setSession(session);
         
-        const userProfile = await trpcClient.profile.get.query({
-          userId: session.user.id,
-        }).catch(() => null);
-
-        setUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          name: session.user.user_metadata?.name || '',
-          dateOfBirth: new Date(),
-          age: 18,
-          createdAt: new Date(session.user.created_at),
-          profile: userProfile ?? undefined,
-        });
+        setUser(mapSupabaseUser(session.user, undefined));
         setIsAuthenticated(true);
       } else {
         console.log('No session found');
@@ -144,33 +120,32 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       console.log('[Auth] Starting signup for:', email);
       console.log('[Auth] Data:', { email, name, dateOfBirth: dateOfBirth.toISOString() });
       
-      const result = await trpcClient.auth.signup.mutate({
+      const result = await signupViaEdgeFunction({
         email,
         password,
         name,
         dateOfBirth: dateOfBirth.toISOString(),
       });
 
-      console.log('[Auth] Signup successful:', result);
+      console.log('[Auth] Signup successful via Edge Function:', result);
       console.log('[Auth] Now logging in...');
       
-      const loginResult = await trpcClient.auth.login.mutate({
+      const { data: loginResult, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      console.log('[Auth] Login successful:', loginResult);
+      if (error) {
+        throw new Error(error.message);
+      }
 
-      if (loginResult.session) {
+      if (loginResult.session && loginResult.user) {
         setSession(loginResult.session);
-        setUser({
-          ...loginResult.user,
-          profile: loginResult.user.profile ?? undefined,
-        });
+        setUser(mapSupabaseUser(loginResult.user, undefined));
         setIsAuthenticated(true);
       }
 
-      return result;
+      return { ...result, session: loginResult.session };
     } catch (error) {
       console.error('[Auth] ❌ Signup error details:', error);
       
@@ -185,21 +160,22 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const login = async (email: string, password: string) => {
     try {
-      const result = await trpcClient.auth.login.mutate({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (result.session) {
-        setSession(result.session);
-        setUser({
-          ...result.user,
-          profile: result.user.profile ?? undefined,
-        });
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data.session && data.user) {
+        setSession(data.session);
+        setUser(mapSupabaseUser(data.user, undefined));
         setIsAuthenticated(true);
       }
 
-      return result;
+      return data;
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -208,7 +184,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const logout = async () => {
     try {
-      await trpcClient.auth.logout.mutate({ token: '' });
       if (isSupabaseConfigured && supabase) {
         await supabase.auth.signOut();
       }
@@ -226,8 +201,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const requestPasswordReset = async (email: string) => {
     try {
-      const result = await trpcClient.auth.requestReset.mutate({ email });
-      return result;
+      if (!isSupabaseConfigured || !supabase) {
+        throw new Error('Supabase not configured');
+      }
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      return { success: true };
     } catch (error) {
       console.error('Request password reset error:', error);
       throw error;
@@ -236,11 +215,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const confirmPasswordReset = async (resetToken: string, newPassword: string) => {
     try {
-      const result = await trpcClient.auth.confirmReset.mutate({
-        token: resetToken,
-        newPassword,
-      });
-      return result;
+      if (!isSupabaseConfigured || !supabase) {
+        throw new Error('Supabase not configured');
+      }
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      return { success: true };
     } catch (error) {
       console.error('Confirm password reset error:', error);
       throw error;
@@ -265,3 +245,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     updateUser,
   };
 });
+
+function mapSupabaseUser(user: SupabaseUser, profile?: User['profile']): User {
+  return {
+    id: user.id,
+    email: user.email || '',
+    name: user.user_metadata?.name || '',
+    dateOfBirth: new Date(),
+    age: 18,
+    createdAt: new Date(user.created_at),
+    profile,
+  };
+}

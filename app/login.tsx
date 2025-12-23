@@ -48,14 +48,10 @@ export default function LoginScreen() {
     if (validateForm()) {
       setIsLoading(true);
       try {
-        const result = await login(email, password);
+        await login(email, password);
         console.log('Login successful');
         
-        if (result.user.profile) {
-          router.replace('/events' as any);
-        } else {
-          router.replace('/create-profile' as any);
-        }
+        router.replace('/create-profile' as any);
       } catch (error: any) {
         console.error('Login error:', error);
         Alert.alert('Error', error?.message || 'Invalid email or password.');
