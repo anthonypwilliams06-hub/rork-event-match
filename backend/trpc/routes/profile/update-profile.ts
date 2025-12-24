@@ -10,7 +10,6 @@ const updateProfileSchema = z.object({
   photoUrl: z.string().optional(),
   interests: z.array(z.string()).optional(),
   personalityTraits: z.array(z.string()).optional(),
-  dealbreakers: z.array(z.string()).optional(),
   relationshipGoal: z.enum(['casual', 'serious', 'friendship', 'open']).optional(),
   location: z.string().optional(),
   ageRangeMin: z.number().optional(),
@@ -38,7 +37,6 @@ export const updateProfileProcedure = publicProcedure
     if (input.photoUrl !== undefined) updates.photoUrl = input.photoUrl;
     if (input.interests !== undefined) updates.interests = input.interests;
     if (input.personalityTraits !== undefined) updates.personalityTraits = input.personalityTraits;
-    if (input.dealbreakers !== undefined) updates.dealbreakers = input.dealbreakers;
     if (input.relationshipGoal !== undefined) updates.relationshipGoal = input.relationshipGoal;
     if (input.location !== undefined) updates.location = input.location;
     if (input.ageRangeMin !== undefined) updates.ageRangeMin = input.ageRangeMin;

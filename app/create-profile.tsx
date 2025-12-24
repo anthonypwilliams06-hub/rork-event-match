@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UserCircle, MapPin, Heart, ArrowRight, Calendar } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { INTERESTS, PERSONALITY_TRAITS, DEALBREAKERS } from '@/constants/interests';
+import { INTERESTS, PERSONALITY_TRAITS } from '@/constants/interests';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { RelationshipGoal } from '@/types';
@@ -31,7 +31,6 @@ export default function CreateProfileScreen() {
   const [location, setLocation] = useState<string>('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [selectedTraits, setSelectedTraits] = useState<string[]>([]);
-  const [selectedDealbreakers, setSelectedDealbreakers] = useState<string[]>([]);
   const [relationshipGoal, setRelationshipGoal] = useState<RelationshipGoal | null>(null);
   const [ageRangeMin, setAgeRangeMin] = useState<string>('');
   const [ageRangeMax, setAgeRangeMax] = useState<string>('');
@@ -58,14 +57,6 @@ export default function CreateProfileScreen() {
       setSelectedTraits(selectedTraits.filter(t => t !== trait));
     } else if (selectedTraits.length < 5) {
       setSelectedTraits([...selectedTraits, trait]);
-    }
-  };
-
-  const toggleDealbreaker = (dealbreaker: string) => {
-    if (selectedDealbreakers.includes(dealbreaker)) {
-      setSelectedDealbreakers(selectedDealbreakers.filter(d => d !== dealbreaker));
-    } else if (selectedDealbreakers.length < 5) {
-      setSelectedDealbreakers([...selectedDealbreakers, dealbreaker]);
     }
   };
 
@@ -365,33 +356,6 @@ export default function CreateProfileScreen() {
                       ]}
                     >
                       {trait}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Dealbreakers (Optional, up to 5)</Text>
-              <Text style={styles.selectionCount}>{selectedDealbreakers.length}/5 selected</Text>
-              <View style={styles.chipsContainer}>
-                {DEALBREAKERS.map((dealbreaker) => (
-                  <TouchableOpacity
-                    key={dealbreaker}
-                    style={[
-                      styles.chip,
-                      selectedDealbreakers.includes(dealbreaker) && styles.chipActive,
-                    ]}
-                    onPress={() => toggleDealbreaker(dealbreaker)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        selectedDealbreakers.includes(dealbreaker) && styles.chipTextActive,
-                      ]}
-                    >
-                      {dealbreaker}
                     </Text>
                   </TouchableOpacity>
                 ))}
