@@ -201,6 +201,19 @@ export interface BlockedUser {
   createdAt: Date;
 }
 
+export interface MutedUser {
+  id: string;
+  muterId: string;
+  mutedId: string;
+  createdAt: Date;
+}
+
+export interface MessageRateLimit {
+  userId: string;
+  count: number;
+  windowStart: Date;
+}
+
 export interface Report {
   id: string;
   reporterId: string;

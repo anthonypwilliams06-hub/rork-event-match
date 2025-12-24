@@ -11,24 +11,34 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { trpc } from '@/lib/trpc';
 import { Message } from '@/types';
-import { ArrowLeft, Send, Trash2, User } from 'lucide-react-native';
+import { ArrowLeft, Send, Trash2, User, MoreVertical, ShieldAlert, Ban, VolumeX, Flag } from 'lucide-react-native';
 
 export default function ChatScreen() {
   const router = useRouter();
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const { token, isAuthenticated, user } = useAuth();
   const [messageText, setMessageText] = useState('');
+  const [showMenu, setShowMenu] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+
+  const eligibilityQuery = trpc.messages.checkEligibility.useQuery(
+    { token: token || '', otherUserId: userId || '' },
+    { 
+      enabled: isAuthenticated && !!token && !!userId,
+      retry: false,
+    }
+  );
 
   const messagesQuery = trpc.messages.list.useQuery(
     { token: token || '', otherUserId: userId || '' },
     { 
-      enabled: isAuthenticated && !!token && !!userId,
+      enabled: isAuthenticated && !!token && !!userId && eligibilityQuery.data?.canChat,
       refetchInterval: 3000,
     }
   );
@@ -40,6 +50,38 @@ export default function ChatScreen() {
     },
     onError: (error) => {
       Alert.alert('Error', error.message || 'Failed to send message');
+    },
+  });
+
+  const muteMutation = trpc.messages.mute.useMutation({
+    onSuccess: () => {
+      Alert.alert('Success', 'User has been muted. You will not receive notifications from them.');
+      setShowMenu(false);
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to mute user');
+    },
+  });
+
+  const blockMutation = trpc.blocking.block.useMutation({
+    onSuccess: () => {
+      Alert.alert('Success', 'User has been blocked. You will no longer see their messages or events.', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+      setShowMenu(false);
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to block user');
+    },
+  });
+
+  const reportMutation = trpc.blocking.report.useMutation({
+    onSuccess: () => {
+      Alert.alert('Success', 'User has been reported. We will review your report.');
+      setShowMenu(false);
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to report user');
     },
   });
 
@@ -86,6 +128,62 @@ export default function ChatScreen() {
       ]
     );
   }, []);
+
+  const handleMuteUser = useCallback(() => {
+    if (!token || !userId) return;
+    Alert.alert(
+      'Mute User',
+      'You will no longer receive notifications from this user. You can still send and receive messages.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mute',
+          style: 'destructive',
+          onPress: () => muteMutation.mutate({ token, mutedId: userId }),
+        },
+      ]
+    );
+  }, [token, userId, muteMutation]);
+
+  const handleBlockUser = useCallback(() => {
+    if (!token || !userId) return;
+    Alert.alert(
+      'Block User',
+      'This user will no longer be able to message you or see your events. This action is permanent.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: () => blockMutation.mutate({ token, blockedId: userId }),
+        },
+      ]
+    );
+  }, [token, userId, blockMutation]);
+
+  const handleReportUser = useCallback(() => {
+    if (!token || !userId) return;
+    
+    const reasons = ['Harassment', 'Spam', 'Inappropriate content', 'Fake profile', 'Other'];
+    
+    Alert.alert(
+      'Report User',
+      'Why are you reporting this user?',
+      [
+        ...reasons.map(reason => ({
+          text: reason,
+          onPress: () => {
+            reportMutation.mutate({
+              token,
+              reportedId: userId,
+              reason,
+            });
+          },
+        })),
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  }, [token, userId, reportMutation]);
 
   const formatMessageTime = (date: Date) => {
     const messageDate = new Date(date);
@@ -191,7 +289,7 @@ export default function ChatScreen() {
     );
   }
 
-  if (messagesQuery.isLoading) {
+  if (eligibilityQuery.isLoading || messagesQuery.isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -199,9 +297,31 @@ export default function ChatScreen() {
             <ArrowLeft size={24} color="#1a1a1a" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Loading...</Text>
+          <View style={styles.headerRight} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FF6B6B" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!eligibilityQuery.data?.canChat) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color="#1a1a1a" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Chat</Text>
+          <View style={styles.headerRight} />
+        </View>
+        <View style={styles.emptyContainer}>
+          <ShieldAlert size={48} color="#FF6B6B" />
+          <Text style={styles.emptyText}>Unable to Chat</Text>
+          <Text style={styles.emptySubtext}>
+            {eligibilityQuery.data?.message || 'You can only chat with users you share a "Going" RSVP with'}
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -221,7 +341,12 @@ export default function ChatScreen() {
             <ArrowLeft size={24} color="#1a1a1a" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Chat</Text>
-          <View style={styles.headerRight} />
+          <TouchableOpacity 
+            style={styles.menuButton} 
+            onPress={() => setShowMenu(true)}
+          >
+            <MoreVertical size={24} color="#1a1a1a" />
+          </TouchableOpacity>
         </View>
 
         {messages.length === 0 ? (
@@ -273,6 +398,52 @@ export default function ChatScreen() {
             )}
           </TouchableOpacity>
         </View>
+
+        <Modal
+          visible={showMenu}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowMenu(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay} 
+            activeOpacity={1}
+            onPress={() => setShowMenu(false)}
+          >
+            <View style={styles.menuModal}>
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={handleMuteUser}
+              >
+                <VolumeX size={20} color="#666" />
+                <Text style={styles.menuItemText}>Mute User</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={handleReportUser}
+              >
+                <Flag size={20} color="#666" />
+                <Text style={styles.menuItemText}>Report User</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.menuItem, styles.menuItemDanger]}
+                onPress={handleBlockUser}
+              >
+                <Ban size={20} color="#ff3b30" />
+                <Text style={[styles.menuItemText, styles.menuItemDangerText]}>Block User</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.menuItem, styles.menuItemCancel]}
+                onPress={() => setShowMenu(false)}
+              >
+                <Text style={styles.menuItemCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -306,6 +477,9 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 32,
   },
+  menuButton: {
+    padding: 4,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -321,11 +495,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#666',
+    marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
     color: '#999',
     marginTop: 8,
+    textAlign: 'center',
   },
   messagesList: {
     paddingVertical: 16,
@@ -444,5 +620,47 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: '#ccc',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  menuModal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingBottom: 34,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  menuItemText: {
+    fontSize: 16,
+    color: '#1a1a1a',
+    marginLeft: 12,
+    fontWeight: '500',
+  },
+  menuItemDanger: {
+    borderBottomWidth: 0,
+  },
+  menuItemDangerText: {
+    color: '#ff3b30',
+  },
+  menuItemCancel: {
+    borderBottomWidth: 0,
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  menuItemCancelText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
   },
 });

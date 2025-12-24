@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { User, UserProfile, Event, FavoriteEvent, Message, Conversation, Rating, BlockedUser, Report, Notification, NotificationSettings, EventSafetyInfo, EventAttendee, VerificationRequest, Payment, Payout, EventReminder, EventUpdate } from '@/types';
+import { User, UserProfile, Event, FavoriteEvent, Message, Conversation, Rating, BlockedUser, MutedUser, Report, Notification, NotificationSettings, EventSafetyInfo, EventAttendee, VerificationRequest, Payment, Payout, EventReminder, EventUpdate } from '@/types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -649,6 +649,100 @@ export class SupabaseDB {
 
     if (error) throw new Error(`Failed to unblock user: ${error.message}`);
     return true;
+  }
+
+  async createMutedUser(mutedUser: MutedUser): Promise<MutedUser> {
+    const { data, error } = await this.getClient()
+      .from('muted_users')
+      .insert({
+        id: mutedUser.id,
+        muter_id: mutedUser.muterId,
+        muted_id: mutedUser.mutedId,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to mute user: ${error.message}`);
+    return this.mapMutedUserFromDB(data);
+  }
+
+  async getMutedUser(muterId: string, mutedId: string): Promise<MutedUser | null> {
+    const { data, error } = await this.getClient()
+      .from('muted_users')
+      .select('*')
+      .eq('muter_id', muterId)
+      .eq('muted_id', mutedId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get muted user: ${error.message}`);
+    }
+    return this.mapMutedUserFromDB(data);
+  }
+
+  async getMutedUserIds(muterId: string): Promise<string[]> {
+    const { data, error } = await this.getClient()
+      .from('muted_users')
+      .select('muted_id')
+      .eq('muter_id', muterId);
+
+    if (error) {
+      console.error('Failed to get muted user IDs:', error);
+      return [];
+    }
+    return data.map(row => row.muted_id);
+  }
+
+  async deleteMutedUser(id: string): Promise<boolean> {
+    const { error } = await this.getClient()
+      .from('muted_users')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error(`Failed to unmute user: ${error.message}`);
+    return true;
+  }
+
+  async getSharedEvents(userId1: string, userId2: string): Promise<(Event & { attendees: EventAttendee[] })[]> {
+    const { data: user1Events, error: error1 } = await this.getClient()
+      .from('event_attendees')
+      .select('event_id')
+      .eq('user_id', userId1);
+
+    if (error1) throw new Error(`Failed to get user events: ${error1.message}`);
+
+    const { data: user2Events, error: error2 } = await this.getClient()
+      .from('event_attendees')
+      .select('event_id')
+      .eq('user_id', userId2);
+
+    if (error2) throw new Error(`Failed to get user events: ${error2.message}`);
+
+    const user1EventIds = user1Events.map(e => e.event_id);
+    const user2EventIds = user2Events.map(e => e.event_id);
+    const sharedEventIds = user1EventIds.filter(id => user2EventIds.includes(id));
+
+    if (sharedEventIds.length === 0) return [];
+
+    const events = await Promise.all(
+      sharedEventIds.map(async (eventId) => {
+        const event = await this.getEventById(eventId);
+        const attendees = await this.getEventAttendees(eventId);
+        return event ? { ...event, attendees } : null;
+      })
+    );
+
+    return events.filter((e): e is Event & { attendees: EventAttendee[] } => e !== null);
+  }
+
+  private mapMutedUserFromDB(data: Record<string, unknown>): MutedUser {
+    return {
+      id: data.id as string,
+      muterId: data.muter_id as string,
+      mutedId: data.muted_id as string,
+      createdAt: new Date(data.created_at as string),
+    };
   }
 
   async createReport(report: Report): Promise<Report> {

@@ -20,6 +20,9 @@ import { sendMessageProcedure } from "./routes/messages/send";
 import { listMessagesProcedure } from "./routes/messages/list";
 import { listConversationsProcedure } from "./routes/messages/conversations";
 import { markReadProcedure } from "./routes/messages/mark-read";
+import { checkChatEligibilityProcedure } from "./routes/messages/check-eligibility";
+import { muteUserProcedure } from "./routes/messages/mute";
+import { unmuteUserProcedure } from "./routes/messages/unmute";
 import { createRatingProcedure } from "./routes/ratings/create";
 import { getCreatorStatsProcedure } from "./routes/ratings/get-stats";
 import { listRatingsProcedure } from "./routes/ratings/list";
@@ -80,6 +83,9 @@ export const appRouter = createTRPCRouter({
     list: listMessagesProcedure,
     conversations: listConversationsProcedure,
     markRead: markReadProcedure,
+    checkEligibility: checkChatEligibilityProcedure,
+    mute: muteUserProcedure,
+    unmute: unmuteUserProcedure,
   }),
   ratings: createTRPCRouter({
     create: createRatingProcedure,
