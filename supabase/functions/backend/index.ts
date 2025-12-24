@@ -278,7 +278,66 @@ const appRouter = router({
   auth: authRouter,
   profile: profileRouter,
   events: router({
-    create: publicProcedure.mutation(() => ({ message: 'Not implemented' })),
+    create: publicProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        description: z.string().min(1),
+        category: z.enum(['food_drink', 'outdoor', 'entertainment', 'sports', 'arts_culture', 'social', 'other']),
+        date: z.date(),
+        time: z.string(),
+        location: z.string().min(1),
+        latitude: z.number().optional(),
+        longitude: z.number().optional(),
+        imageUrl: z.string().url(),
+        capacity: z.number().min(1).optional(),
+        vibes: z.array(z.enum(['chill', 'adventurous', 'romantic', 'social', 'intimate', 'energetic', 'cultural', 'fun'])).default([]),
+        isDraft: z.boolean().default(false),
+        isPaid: z.boolean().default(false),
+        price: z.number().min(0).optional(),
+        currency: z.string().default('USD').optional(),
+        creatorId: z.string(),
+      }))
+      .mutation(async ({ input }: any) => {
+        console.log('[Events] Creating event:', input.title);
+        
+        const { data, error } = await supabaseAdmin
+          .from('events')
+          .insert([{
+            creator_id: input.creatorId,
+            title: input.title,
+            description: input.description,
+            date: input.date.toISOString(),
+            time: input.time,
+            location: input.location,
+            latitude: input.latitude || null,
+            longitude: input.longitude || null,
+            category: input.category,
+            vibes: input.vibes || [],
+            image_url: input.imageUrl,
+            capacity: input.capacity || null,
+            spots_available: input.capacity || null,
+            attendee_ids: [],
+            status: input.isDraft ? 'draft' : 'upcoming',
+            is_draft: input.isDraft,
+            is_paid: input.isPaid,
+            price: input.price || null,
+            currency: input.currency || 'USD',
+            views: 0,
+            likes: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }])
+          .select()
+          .single();
+
+        if (error) {
+          console.error('[Events] Create error:', error);
+          throw new Error(error.message);
+        }
+
+        console.log('[Events] Event created:', data.id);
+        return data;
+      }),
     update: publicProcedure.mutation(() => ({ message: 'Not implemented' })),
     delete: publicProcedure.mutation(() => ({ message: 'Not implemented' })),
     list: publicProcedure.query(() => ({ events: [] })),
