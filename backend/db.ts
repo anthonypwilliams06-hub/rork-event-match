@@ -201,6 +201,7 @@ export class SupabaseDB {
     if (updates.photoUrl !== undefined) dbUpdates.photo_url = updates.photoUrl;
     if (updates.interests !== undefined) dbUpdates.interests = updates.interests;
     if (updates.personalityTraits !== undefined) dbUpdates.personality_traits = updates.personalityTraits;
+    if (updates.dealbreakers !== undefined) dbUpdates.dealbreakers = updates.dealbreakers;
     if (updates.relationshipGoal !== undefined) dbUpdates.relationship_goal = updates.relationshipGoal;
     if (updates.location !== undefined) dbUpdates.location = updates.location;
     if (updates.ageRangeMin !== undefined) dbUpdates.age_range_min = updates.ageRangeMin;
@@ -1302,6 +1303,7 @@ export class SupabaseDB {
       photoUrl: data.photo_url as string | undefined,
       interests: (data.interests as string[]) || [],
       personalityTraits: (data.personality_traits as string[]) || [],
+      dealbreakers: (data.dealbreakers as string[]) || [],
       relationshipGoal: data.relationship_goal as UserProfile['relationshipGoal'],
       location: data.location as string,
       ageRangeMin: data.age_range_min as number | undefined,
