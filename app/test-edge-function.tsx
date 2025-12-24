@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { signupViaEdgeFunction } from '@/lib/authSignup';
+import { signupViaHTTP } from '@/lib/authSignup';
 import { callBackendFunction, pingHealthcheck } from '@/lib/functions';
 
 export default function TestEdgeFunctionScreen() {
@@ -74,10 +74,10 @@ export default function TestEdgeFunctionScreen() {
 
   const testViaHelper = async () => {
     setIsLoading(true);
-    addLog('=== Testing Via signupViaEdgeFunction Helper ===');
+    addLog('=== Testing Via signupViaHTTP Helper ===');
     
     try {
-      const result = await signupViaEdgeFunction({
+      const result = await signupViaHTTP({
         email: testEmail,
         password: testPassword,
         name: testName,

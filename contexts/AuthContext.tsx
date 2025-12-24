@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { User } from '@/types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import { signupViaHTTP } from '@/lib/authSignup';
 
 
 
@@ -123,41 +124,35 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       console.log('[Auth] Starting signup for:', email);
       
-      const age = Math.floor((Date.now() - dateOfBirth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-      
-      if (age < 18) {
-        throw new Error('You must be at least 18 years old to create an account');
-      }
-
-      const { data: signupData, error: signupError } = await supabase.auth.signUp({
+      const result = await signupViaHTTP({
         email,
         password,
-        options: {
-          data: {
-            name,
-            date_of_birth: dateOfBirth.toISOString(),
-            age,
-          },
-        },
+        name,
+        dateOfBirth: dateOfBirth.toISOString(),
       });
 
-      if (signupError) {
-        throw new Error(signupError.message);
+      if (!result.success) {
+        throw new Error(result.error || 'Signup failed');
       }
 
-      if (!signupData.user) {
-        throw new Error('Failed to create account');
+      console.log('[Auth] ✅ Account created, now signing in...');
+
+      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (loginError) {
+        throw new Error(loginError.message);
       }
 
-      console.log('[Auth] Supabase Auth user created:', signupData.user.id);
-
-      if (signupData.session) {
-        setSession(signupData.session);
-        setUser(mapSupabaseUser(signupData.user, undefined));
+      if (loginData.session && loginData.user) {
+        setSession(loginData.session);
+        setUser(mapSupabaseUser(loginData.user, undefined));
         setIsAuthenticated(true);
       }
 
-      return { user: signupData.user, session: signupData.session };
+      return { user: result.user, session: loginData.session };
     } catch (error) {
       console.error('[Auth] ❌ Signup error:', error);
       throw error;

@@ -353,6 +353,60 @@ app.get("/api", (c: any) => {
   return c.json({ status: "ok", message: "API is running" });
 });
 
+app.post("/signup", async (c: any) => {
+  try {
+    const body = await c.req.json();
+    const { email, password, name, dateOfBirth } = body;
+
+    if (!email || !password || !name || !dateOfBirth) {
+      return c.json({ success: false, error: 'Missing required fields' }, 400);
+    }
+
+    const birthDate = new Date(dateOfBirth);
+    const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+
+    if (age < 18) {
+      return c.json({ success: false, error: 'You must be at least 18 years old' }, 400);
+    }
+
+    const existingUser = await db.getUserByEmail(email);
+    if (existingUser) {
+      return c.json({ success: false, error: 'Email already registered' }, 400);
+    }
+
+    const { user: authUser } = await serverAuth.signUp(email, password);
+
+    if (!authUser) {
+      return c.json({ success: false, error: 'Failed to create account' }, 500);
+    }
+
+    const createdUser = await db.createUser({
+      id: authUser.id,
+      email,
+      name,
+      dateOfBirth: birthDate,
+      age,
+    });
+
+    console.log('[Signup] Success:', createdUser.id);
+
+    return c.json({
+      success: true,
+      user: {
+        id: createdUser.id,
+        email: createdUser.email,
+        name: createdUser.name,
+      },
+    });
+  } catch (error) {
+    console.error('[Signup] Error:', error);
+    return c.json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Signup failed' 
+    }, 500);
+  }
+});
+
 app.use(
   "/api/trpc/*",
   trpcServer({
