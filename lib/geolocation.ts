@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import { Platform } from 'react-native';
 
 export interface Coordinates {
   latitude: number;
@@ -27,6 +28,14 @@ export async function requestLocationPermission(): Promise<boolean> {
   try {
     console.log('[Geolocation] Requesting location permission...');
     
+    if (Platform.OS === 'web') {
+      if (!navigator.geolocation) {
+        console.error('[Geolocation] Geolocation not supported on this browser');
+        return false;
+      }
+      return true;
+    }
+    
     const { status } = await Location.requestForegroundPermissionsAsync();
     
     console.log('[Geolocation] Permission status:', status);
@@ -48,6 +57,10 @@ export async function getCurrentLocation(): Promise<LocationResult> {
         code: 'PERMISSION_DENIED',
         message: 'Location permission was denied. Please enable location access in your device settings.',
       } as LocationError;
+    }
+
+    if (Platform.OS === 'web') {
+      return await getWebLocation();
     }
 
     const location = await Location.getCurrentPositionAsync({
@@ -76,6 +89,63 @@ export async function getCurrentLocation(): Promise<LocationResult> {
       message: 'Unable to determine your location. Please check your device settings and try again.',
     } as LocationError;
   }
+}
+
+function getWebLocation(): Promise<LocationResult> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject({
+        code: 'POSITION_UNAVAILABLE',
+        message: 'Geolocation is not supported by your browser.',
+      } as LocationError);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        console.log('[Geolocation] Web location obtained:', position.coords);
+        resolve({
+          coords: {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          },
+          accuracy: position.coords.accuracy,
+          timestamp: position.timestamp,
+        });
+      },
+      (error) => {
+        console.error('[Geolocation] Web geolocation error:', error);
+        
+        let errorCode: LocationError['code'] = 'UNKNOWN';
+        let errorMessage = 'Unable to get your location.';
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorCode = 'PERMISSION_DENIED';
+            errorMessage = 'Location permission was denied. Please enable location access in your browser settings.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorCode = 'POSITION_UNAVAILABLE';
+            errorMessage = 'Location information is unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorCode = 'TIMEOUT';
+            errorMessage = 'Location request timed out.';
+            break;
+        }
+        
+        reject({
+          code: errorCode,
+          message: errorMessage,
+        } as LocationError);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  });
 }
 
 export function calculateDistance(
