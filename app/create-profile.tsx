@@ -18,12 +18,12 @@ import { UserCircle, MapPin, Heart, ArrowRight, Calendar } from 'lucide-react-na
 import Colors from '@/constants/colors';
 import { INTERESTS, PERSONALITY_TRAITS } from '@/constants/interests';
 import { useAuth } from '@/contexts/AuthContext';
-import { trpcClient } from '@/lib/trpc';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { RelationshipGoal } from '@/types';
 
 export default function CreateProfileScreen() {
   const router = useRouter();
-  const { token, isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading } = useAuth();
   const [role, setRole] = useState<'creator' | 'seeker' | null>(null);
   const [bio, setBio] = useState<string>('');
   const [location, setLocation] = useState<string>('');
@@ -101,8 +101,14 @@ export default function CreateProfileScreen() {
       return;
     }
 
-    if (!token) {
-      console.error('No token available');
+    if (!isSupabaseConfigured || !supabase) {
+      Alert.alert('Error', 'Database not configured');
+      return;
+    }
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.error('No authenticated user');
       Alert.alert('Error', 'Authentication session not found. Please log in again.');
       router.replace('/login' as any);
       return;
@@ -110,17 +116,36 @@ export default function CreateProfileScreen() {
 
     setIsLoading(true);
     try {
-      await trpcClient.profile.create.mutate({
-        token,
-        role,
-        bio: bio.trim() || undefined,
-        interests: selectedInterests,
-        personalityTraits: selectedTraits,
-        relationshipGoal: relationshipGoal || undefined,
-        location,
-        ageRangeMin: role === 'seeker' && ageRangeMin ? parseInt(ageRangeMin) : undefined,
-        ageRangeMax: role === 'seeker' && ageRangeMax ? parseInt(ageRangeMax) : undefined,
-      });
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingProfile) {
+        Alert.alert('Error', 'Profile already exists');
+        setIsLoading(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: user.id,
+          role,
+          bio: bio.trim() || null,
+          interests: selectedInterests,
+          personality_traits: selectedTraits,
+          relationship_goal: relationshipGoal || null,
+          location,
+          age_range_min: role === 'seeker' && ageRangeMin ? parseInt(ageRangeMin) : null,
+          age_range_max: role === 'seeker' && ageRangeMax ? parseInt(ageRangeMax) : null,
+        });
+
+      if (error) {
+        console.error('Profile creation error:', error);
+        throw new Error(error.message);
+      }
 
       console.log('Profile created successfully');
       router.replace('/' as any);
