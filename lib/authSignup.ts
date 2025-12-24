@@ -14,9 +14,14 @@ type SignupResponse = {
 
 export async function signupViaHTTP(input: SignupInput): Promise<SignupResponse> {
   const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_KEY;
   
   if (!baseUrl) {
     return { success: false, error: 'Supabase URL not configured' };
+  }
+
+  if (!anonKey) {
+    return { success: false, error: 'Supabase anon key not configured' };
   }
 
   const url = `${baseUrl}/functions/v1/sign_up`;
@@ -29,6 +34,8 @@ export async function signupViaHTTP(input: SignupInput): Promise<SignupResponse>
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${anonKey}`,
+        'apikey': anonKey,
       },
       body: JSON.stringify(input),
     });
