@@ -1044,6 +1044,30 @@ export class SupabaseDB {
     return this.mapVerificationRequestFromDB(data);
   }
 
+  async getVerificationRequestById(id: string): Promise<VerificationRequest | null> {
+    const { data, error } = await this.getClient()
+      .from('verification_requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get verification request: ${error.message}`);
+    }
+    return this.mapVerificationRequestFromDB(data);
+  }
+
+  async getAllVerificationRequests(): Promise<VerificationRequest[]> {
+    const { data, error } = await this.getClient()
+      .from('verification_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get all verification requests: ${error.message}`);
+    return data.map(req => this.mapVerificationRequestFromDB(req));
+  }
+
   async updateVerificationRequest(id: string, updates: Partial<VerificationRequest>): Promise<VerificationRequest | null> {
     const dbUpdates: Record<string, unknown> = {};
     if (updates.status !== undefined) dbUpdates.status = updates.status;

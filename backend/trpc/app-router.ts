@@ -48,6 +48,11 @@ import { updateRSVPProcedure } from "./routes/rsvp/update-status";
 import { setReminderProcedure } from "./routes/rsvp/set-reminder";
 import { getRSVPStatusProcedure } from "./routes/rsvp/get-status";
 import { createEventUpdateProcedure } from "./routes/events/create-update";
+import { listReportsProcedure } from "./routes/admin/list-reports";
+import { banUserProcedure } from "./routes/admin/ban-user";
+import { removeEventProcedure } from "./routes/admin/remove-event";
+import { listVerificationsProcedure } from "./routes/admin/list-verifications";
+import { approveVerificationProcedure } from "./routes/admin/approve-verification";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -126,6 +131,13 @@ export const appRouter = createTRPCRouter({
   }),
   analytics: createTRPCRouter({
     eventAnalytics: getEventAnalyticsProcedure,
+  }),
+  admin: createTRPCRouter({
+    listReports: listReportsProcedure,
+    banUser: banUserProcedure,
+    removeEvent: removeEventProcedure,
+    listVerifications: listVerificationsProcedure,
+    approveVerification: approveVerificationProcedure,
   }),
 });
 
