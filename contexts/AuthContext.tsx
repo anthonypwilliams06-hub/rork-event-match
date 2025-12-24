@@ -137,13 +137,33 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       console.log('[Auth] ✅ Account created, now signing in...');
 
-      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      let loginData = null;
+      let loginError = null;
+      let attempts = 0;
+      const maxAttempts = 3;
 
-      if (loginError) {
-        throw new Error(loginError.message);
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, attempts * 1000));
+        
+        const result = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        
+        loginData = result.data;
+        loginError = result.error;
+        
+        if (!loginError) {
+          console.log('[Auth] ✅ Sign-in successful on attempt', attempts + 1);
+          break;
+        }
+        
+        console.log(`[Auth] Sign-in attempt ${attempts + 1} failed:`, loginError.message);
+        attempts++;
+      }
+
+      if (loginError || !loginData) {
+        throw new Error(loginError?.message || 'Sign-in failed');
       }
 
       if (loginData.session && loginData.user) {
