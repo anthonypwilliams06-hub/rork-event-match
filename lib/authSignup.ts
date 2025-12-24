@@ -12,7 +12,7 @@ export async function signupViaHTTP(input: SignupInput) {
     throw new Error('Supabase URL not configured');
   }
 
-  const url = `${baseUrl}/functions/v1/backend/signup`;
+  const url = `${baseUrl}/functions/v1/sign_up`;
 
   console.log('[Auth] Calling signup endpoint:', url);
 
@@ -27,7 +27,7 @@ export async function signupViaHTTP(input: SignupInput) {
 
     const data = await response.json();
 
-    if (!response.ok || !data.success) {
+    if (!response.ok) {
       throw new Error(data.error || 'Signup failed');
     }
 
