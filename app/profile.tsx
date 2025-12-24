@@ -26,7 +26,7 @@ import {
   Camera,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { INTERESTS, PERSONALITY_TRAITS } from '@/constants/interests';
+import { INTERESTS, PERSONALITY_TRAITS, DEALBREAKERS } from '@/constants/interests';
 import { useAuth } from '@/contexts/AuthContext';
 import { trpcClient } from '@/lib/trpc';
 import { RelationshipGoal } from '@/types';
@@ -44,6 +44,7 @@ export default function ProfileScreen() {
   const [editedLocation, setEditedLocation] = useState<string>(profile?.location || '');
   const [editedInterests, setEditedInterests] = useState<string[]>(profile?.interests || []);
   const [editedTraits, setEditedTraits] = useState<string[]>(profile?.personalityTraits || []);
+  const [editedDealbreakers, setEditedDealbreakers] = useState<string[]>(profile?.dealbreakers || []);
   const [editedGoal, setEditedGoal] = useState<RelationshipGoal | undefined>(profile?.relationshipGoal);
   const [editedAgeMin, setEditedAgeMin] = useState<string>(profile?.ageRangeMin?.toString() || '');
   const [editedAgeMax, setEditedAgeMax] = useState<string>(profile?.ageRangeMax?.toString() || '');
@@ -58,7 +59,7 @@ export default function ProfileScreen() {
   const completeness = React.useMemo(() => {
     if (!profile) return 0;
     let score = 0;
-    const total = isCreator ? 7 : 6;
+    const total = isCreator ? 8 : 7;
 
     if (profile.bio) score++;
     if (profile.photoUrl) score++;
@@ -66,6 +67,7 @@ export default function ProfileScreen() {
     if (profile.interests.length > 0) score++;
     if (profile.personalityTraits.length > 0) score++;
     if (profile.relationshipGoal) score++;
+    if (profile.dealbreakers && profile.dealbreakers.length > 0) score++;
     if (!isCreator && profile.ageRangeMin && profile.ageRangeMax) score++;
 
     return Math.round((score / total) * 100);
@@ -87,11 +89,20 @@ export default function ProfileScreen() {
     }
   };
 
+  const toggleDealbreaker = (dealbreaker: string) => {
+    if (editedDealbreakers.includes(dealbreaker)) {
+      setEditedDealbreakers(editedDealbreakers.filter(d => d !== dealbreaker));
+    } else if (editedDealbreakers.length < 5) {
+      setEditedDealbreakers([...editedDealbreakers, dealbreaker]);
+    }
+  };
+
   const handleEdit = () => {
     setEditedBio(profile?.bio || '');
     setEditedLocation(profile?.location || '');
     setEditedInterests(profile?.interests || []);
     setEditedTraits(profile?.personalityTraits || []);
+    setEditedDealbreakers(profile?.dealbreakers || []);
     setEditedGoal(profile?.relationshipGoal);
     setEditedAgeMin(profile?.ageRangeMin?.toString() || '');
     setEditedAgeMax(profile?.ageRangeMax?.toString() || '');
@@ -113,6 +124,7 @@ export default function ProfileScreen() {
         location: editedLocation.trim(),
         interests: editedInterests,
         personalityTraits: editedTraits,
+        dealbreakers: editedDealbreakers,
         relationshipGoal: editedGoal,
         ageRangeMin: !isCreator && editedAgeMin ? parseInt(editedAgeMin) : undefined,
         ageRangeMax: !isCreator && editedAgeMax ? parseInt(editedAgeMax) : undefined,
@@ -384,6 +396,48 @@ export default function ProfileScreen() {
                     <Text style={styles.chipTextActive}>{trait}</Text>
                   </View>
                 ))}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Dealbreakers ({isEditing ? `${editedDealbreakers.length}/5` : editedDealbreakers.length})
+            </Text>
+            {isEditing ? (
+              <View style={styles.chipsContainer}>
+                {DEALBREAKERS.map((dealbreaker) => (
+                  <TouchableOpacity
+                    key={dealbreaker}
+                    style={[
+                      styles.chip,
+                      editedDealbreakers.includes(dealbreaker) && styles.chipActive,
+                    ]}
+                    onPress={() => toggleDealbreaker(dealbreaker)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        editedDealbreakers.includes(dealbreaker) && styles.chipTextActive,
+                      ]}
+                    >
+                      {dealbreaker}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.chipsContainer}>
+                {(profile.dealbreakers && profile.dealbreakers.length > 0) ? (
+                  profile.dealbreakers.map((dealbreaker) => (
+                    <View key={dealbreaker} style={styles.chipActive}>
+                      <Text style={styles.chipTextActive}>{dealbreaker}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.infoText}>No dealbreakers set</Text>
+                )}
               </View>
             )}
           </View>

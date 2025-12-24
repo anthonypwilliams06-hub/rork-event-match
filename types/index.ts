@@ -124,6 +124,7 @@ export interface UserProfile {
   interests: string[];
   personalityTraits: string[];
   relationshipGoal?: RelationshipGoal;
+  dealbreakers?: string[];
   location: string;
   ageRangeMin?: number;
   ageRangeMax?: number;
@@ -267,11 +268,14 @@ export interface TrustedContact {
   email?: string;
 }
 
+export type RSVPStatus = 'going' | 'interested' | 'not_going';
+
 export interface EventAttendee {
   id: string;
   eventId: string;
   userId: string;
   status: 'interested' | 'attending' | 'checked_in' | 'completed';
+  rsvpStatus?: RSVPStatus;
   ticketId?: string;
   paidAmount?: number;
   createdAt: Date;

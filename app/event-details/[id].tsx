@@ -24,11 +24,14 @@ import {
   Heart,
   MessageCircle,
   UserCircle,
+  Star,
+  Bell,
+  Download,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/contexts/AuthContext';
-import { EventStatus } from '@/types';
+import { EventStatus, RSVPStatus } from '@/types';
 
 export default function EventDetailsScreen() {
   const router = useRouter();
@@ -36,6 +39,8 @@ export default function EventDetailsScreen() {
   const { user, token } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
+  const [rsvpStatus, setRsvpStatus] = useState<RSVPStatus | null>(null);
+  const [reminderSet, setReminderSet] = useState(false);
 
   const eventQuery = trpc.events.get.useQuery({ id: id || '' }, {
     enabled: !!id,
@@ -192,6 +197,41 @@ export default function EventDetailsScreen() {
   const handleMessageCreator = () => {
     if (!event) return;
     router.push(`/chat/${event.creatorId}` as any);
+  };
+
+  const handleRSVP = async (status: RSVPStatus) => {
+    if (!user || !event) return;
+    
+    try {
+      setRsvpStatus(status);
+      Alert.alert(
+        'RSVP Confirmed',
+        `You're marked as ${status === 'going' ? 'Going' : status === 'interested' ? 'Interested' : 'Not Going'}`,
+        [
+          {
+            text: 'Set Reminder',
+            onPress: () => handleSetReminder(),
+          },
+          { text: 'OK' }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update RSVP status');
+      console.error('RSVP error:', error);
+    }
+  };
+
+  const handleSetReminder = () => {
+    setReminderSet(true);
+    Alert.alert('Reminder Set', 'You will be notified 1 hour before the event');
+  };
+
+  const handleAddToCalendar = () => {
+    Alert.alert(
+      'Add to Calendar',
+      'This feature will add the event to your device calendar. Coming soon!',
+      [{ text: 'OK' }]
+    );
   };
 
   const getStatusColor = (status: EventStatus) => {
@@ -424,6 +464,105 @@ export default function EventDetailsScreen() {
                 </View>
               </TouchableOpacity>
 
+              <View style={styles.rsvpSection}>
+                <Text style={styles.rsvpTitle}>RSVP to this event</Text>
+                <View style={styles.rsvpButtonsContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.rsvpButton,
+                      rsvpStatus === 'going' && styles.rsvpButtonGoing,
+                    ]}
+                    onPress={() => handleRSVP('going')}
+                    activeOpacity={0.8}
+                  >
+                    <CheckCircle
+                      size={20}
+                      color={rsvpStatus === 'going' ? Colors.text.white : '#10B981'}
+                    />
+                    <Text
+                      style={[
+                        styles.rsvpButtonText,
+                        rsvpStatus === 'going' && styles.rsvpButtonTextActive,
+                      ]}
+                    >
+                      Going
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.rsvpButton,
+                      rsvpStatus === 'interested' && styles.rsvpButtonInterested,
+                    ]}
+                    onPress={() => handleRSVP('interested')}
+                    activeOpacity={0.8}
+                  >
+                    <Star
+                      size={20}
+                      color={rsvpStatus === 'interested' ? Colors.text.white : '#F59E0B'}
+                    />
+                    <Text
+                      style={[
+                        styles.rsvpButtonText,
+                        rsvpStatus === 'interested' && styles.rsvpButtonTextActive,
+                      ]}
+                    >
+                      Interested
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.rsvpButton,
+                      rsvpStatus === 'not_going' && styles.rsvpButtonNotGoing,
+                    ]}
+                    onPress={() => handleRSVP('not_going')}
+                    activeOpacity={0.8}
+                  >
+                    <X
+                      size={20}
+                      color={rsvpStatus === 'not_going' ? Colors.text.white : Colors.text.secondary}
+                    />
+                    <Text
+                      style={[
+                        styles.rsvpButtonText,
+                        rsvpStatus === 'not_going' && styles.rsvpButtonTextActive,
+                      ]}
+                    >
+                      Not Going
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {(rsvpStatus === 'going' || rsvpStatus === 'interested') && (
+                <View style={styles.reminderSection}>
+                  <TouchableOpacity
+                    style={[styles.reminderButton, reminderSet && styles.reminderButtonActive]}
+                    onPress={handleSetReminder}
+                    activeOpacity={0.8}
+                    disabled={reminderSet}
+                  >
+                    <Bell
+                      size={20}
+                      color={reminderSet ? '#10B981' : Colors.coral}
+                    />
+                    <Text style={[styles.reminderButtonText, reminderSet && styles.reminderButtonTextActive]}>
+                      {reminderSet ? 'Reminder Set ✓' : 'Set Reminder'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.calendarButton}
+                    onPress={handleAddToCalendar}
+                    activeOpacity={0.8}
+                  >
+                    <Download size={20} color={Colors.coral} />
+                    <Text style={styles.calendarButtonText}>Add to Calendar</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <View style={styles.actionButtonsContainer}>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.favoriteButton]}
@@ -655,6 +794,98 @@ const styles = StyleSheet.create({
   },
   messageButtonText: {
     color: Colors.text.white,
+  },
+  rsvpSection: {
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  rsvpTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text.primary,
+    marginBottom: 12,
+  },
+  rsvpButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  rsvpButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: Colors.background.secondary,
+    borderWidth: 2,
+    borderColor: Colors.border.light,
+    gap: 6,
+  },
+  rsvpButtonGoing: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  rsvpButtonInterested: {
+    backgroundColor: '#F59E0B',
+    borderColor: '#F59E0B',
+  },
+  rsvpButtonNotGoing: {
+    backgroundColor: Colors.text.secondary,
+    borderColor: Colors.text.secondary,
+  },
+  rsvpButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text.primary,
+  },
+  rsvpButtonTextActive: {
+    color: Colors.text.white,
+  },
+  reminderSection: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  reminderButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.background.card,
+    borderWidth: 2,
+    borderColor: Colors.coral,
+    gap: 8,
+  },
+  reminderButtonActive: {
+    borderColor: '#10B981',
+    backgroundColor: '#F0FDF4',
+  },
+  reminderButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.coral,
+  },
+  reminderButtonTextActive: {
+    color: '#10B981',
+  },
+  calendarButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.background.card,
+    borderWidth: 2,
+    borderColor: Colors.border.light,
+    gap: 8,
+  },
+  calendarButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text.primary,
   },
   publishButton: {
     marginTop: 24,

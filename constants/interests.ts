@@ -63,3 +63,17 @@ export const EVENT_CATEGORIES = [
   { id: 'social' as const, name: 'Social', emoji: '🎉' },
   { id: 'other' as const, name: 'Other', emoji: '✨' },
 ];
+
+export const DEALBREAKERS = [
+  'Smoking',
+  'Drinking',
+  'Pets',
+  'Children',
+  'Political Views',
+  'Religion',
+  'Long Distance',
+  'Different Life Goals',
+  'Work Schedule',
+  'Party Lifestyle',
+  'Gym Lifestyle',
+];
