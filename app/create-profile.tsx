@@ -23,7 +23,7 @@ import { RelationshipGoal } from '@/types';
 
 export default function CreateProfileScreen() {
   const router = useRouter();
-  const { isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading, user: authUser, updateUser } = useAuth();
   const [role, setRole] = useState<'creator' | 'seeker' | null>(null);
   const [bio, setBio] = useState<string>('');
   const [location, setLocation] = useState<string>('');
@@ -128,19 +128,21 @@ export default function CreateProfileScreen() {
         return;
       }
 
+      const profileData = {
+        user_id: user.id,
+        role,
+        bio: bio.trim() || null,
+        interests: selectedInterests,
+        personality_traits: selectedTraits,
+        relationship_goal: relationshipGoal || null,
+        location,
+        age_range_min: role === 'seeker' && ageRangeMin ? parseInt(ageRangeMin) : null,
+        age_range_max: role === 'seeker' && ageRangeMax ? parseInt(ageRangeMax) : null,
+      };
+
       const { error } = await supabase
         .from('profiles')
-        .insert({
-          user_id: user.id,
-          role,
-          bio: bio.trim() || null,
-          interests: selectedInterests,
-          personality_traits: selectedTraits,
-          relationship_goal: relationshipGoal || null,
-          location,
-          age_range_min: role === 'seeker' && ageRangeMin ? parseInt(ageRangeMin) : null,
-          age_range_max: role === 'seeker' && ageRangeMax ? parseInt(ageRangeMax) : null,
-        });
+        .insert(profileData);
 
       if (error) {
         console.error('Profile creation error:', error);
@@ -148,6 +150,25 @@ export default function CreateProfileScreen() {
       }
 
       console.log('Profile created successfully');
+
+      if (authUser) {
+        updateUser({
+          ...authUser,
+          profile: {
+            userId: user.id,
+            role,
+            bio: bio.trim() || undefined,
+            interests: selectedInterests,
+            personalityTraits: selectedTraits,
+            relationshipGoal: relationshipGoal || undefined,
+            location,
+            ageRangeMin: role === 'seeker' && ageRangeMin ? parseInt(ageRangeMin) : undefined,
+            ageRangeMax: role === 'seeker' && ageRangeMax ? parseInt(ageRangeMax) : undefined,
+            verificationStatus: 'unverified',
+          },
+        });
+      }
+
       router.replace('/' as any);
     } catch (error: any) {
       console.error('Create profile error:', error);
