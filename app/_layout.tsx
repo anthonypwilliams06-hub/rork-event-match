@@ -11,6 +11,9 @@ import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { trpc, trpcClient } from "@/lib/trpc";
+import { initSentry } from "@/lib/sentry";
+
+initSentry();
 
 SplashScreen.preventAutoHideAsync();
 

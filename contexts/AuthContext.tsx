@@ -4,6 +4,8 @@ import { User } from '@/types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { signupViaHTTP } from '@/lib/authSignup';
+import { logError, setUser as setSentryUser, clearUser as clearSentryUser } from '@/lib/sentry';
+import { trackSignupStarted, trackSignupCompleted, trackSignupFailed, trackLoginStarted, trackLoginCompleted, trackLoginFailed } from '@/lib/analytics';
 
 
 
@@ -118,8 +120,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const signup = async (email: string, password: string, name: string, dateOfBirth: Date) => {
     try {
+      trackSignupStarted();
+      
       if (!isSupabaseConfigured || !supabase) {
-        throw new Error('Supabase not configured');
+        const error = new Error('Supabase not configured');
+        trackSignupFailed(error.message, 'configuration');
+        throw error;
       }
 
       console.log('[Auth] Starting signup for:', email);
@@ -132,7 +138,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       });
 
       if (!result.success) {
-        throw new Error(result.error || 'Signup failed');
+        const error = new Error(result.error || 'Signup failed');
+        trackSignupFailed(error.message, 'account_creation');
+        throw error;
       }
 
       console.log('[Auth] ✅ Account created, now signing in...');
@@ -163,26 +171,35 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       }
 
       if (loginError || !loginData) {
-        throw new Error(loginError?.message || 'Sign-in failed');
+        const error = new Error(loginError?.message || 'Sign-in failed');
+        trackSignupFailed(error.message, 'auto_signin');
+        throw error;
       }
 
       if (loginData.session && loginData.user) {
         setSession(loginData.session);
         setUser(mapSupabaseUser(loginData.user, undefined));
         setIsAuthenticated(true);
+        setSentryUser(loginData.user.id, loginData.user.email || undefined);
+        trackSignupCompleted(loginData.user.id);
       }
 
       return { userId: result.userId, session: loginData.session };
     } catch (error) {
       console.error('[Auth] ❌ Signup error:', error);
+      logError(error instanceof Error ? error : new Error('Unknown signup error'), { email });
       throw error;
     }
   };
 
   const login = async (email: string, password: string) => {
     try {
+      trackLoginStarted();
+      
       if (!isSupabaseConfigured || !supabase) {
-        throw new Error('Supabase not configured');
+        const error = new Error('Supabase not configured');
+        trackLoginFailed(error.message);
+        throw error;
       }
 
       console.log('[Auth] Attempting login for:', email);
@@ -196,6 +213,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         console.error('[Auth] Login error:', error.message);
         console.error('[Auth] Error status:', error.status);
         console.error('[Auth] Error details:', JSON.stringify(error, null, 2));
+        trackLoginFailed(error.message);
+        logError(new Error(error.message), { email, status: error.status });
         throw new Error(error.message);
       }
 
@@ -204,11 +223,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         setSession(data.session);
         setUser(mapSupabaseUser(data.user, undefined));
         setIsAuthenticated(true);
+        setSentryUser(data.user.id, data.user.email || undefined);
+        trackLoginCompleted(data.user.id);
       }
 
       return data;
     } catch (error) {
       console.error('[Auth] Login error:', error);
+      logError(error instanceof Error ? error : new Error('Unknown login error'), { email });
       throw error;
     }
   };
@@ -219,6 +241,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         await supabase.auth.signOut();
       }
       
+      clearSentryUser();
       setSession(null);
       setUser(null);
       setIsAuthenticated(false);

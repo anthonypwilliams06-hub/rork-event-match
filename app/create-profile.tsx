@@ -20,6 +20,8 @@ import { INTERESTS, PERSONALITY_TRAITS, DEALBREAKERS } from '@/constants/interes
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { RelationshipGoal } from '@/types';
+import { trackProfileCreated } from '@/lib/analytics';
+import { logError } from '@/lib/sentry';
 
 export default function CreateProfileScreen() {
   const router = useRouter();
@@ -160,6 +162,7 @@ export default function CreateProfileScreen() {
       }
 
       console.log('Profile created successfully');
+      trackProfileCreated(user.id, false, selectedInterests.length);
 
       if (authUser) {
         updateUser({
@@ -183,6 +186,7 @@ export default function CreateProfileScreen() {
       router.replace('/' as any);
     } catch (error: any) {
       console.error('Create profile error:', error);
+      logError(error instanceof Error ? error : new Error('Profile creation failed'), { userId: user.id });
       Alert.alert('Error', error?.message || 'Failed to create profile. Please try again.');
     } finally {
       setIsLoading(false);

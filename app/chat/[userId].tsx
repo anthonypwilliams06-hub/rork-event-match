@@ -17,6 +17,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { trpc } from '@/lib/trpc';
 import { Message } from '@/types';
+import { trackMessageSent, trackMessageFailed } from '@/lib/analytics';
 import { ArrowLeft, Send, Trash2, User, MoreVertical, ShieldAlert, Ban, VolumeX, Flag } from 'lucide-react-native';
 
 export default function ChatScreen() {
@@ -45,10 +46,12 @@ export default function ChatScreen() {
 
   const sendMutation = trpc.messages.send.useMutation({
     onSuccess: () => {
+      trackMessageSent(userId || '', !!messagesQuery.data?.messages?.length);
       setMessageText('');
       messagesQuery.refetch();
     },
     onError: (error) => {
+      trackMessageFailed(userId || '', error.message);
       Alert.alert('Error', error.message || 'Failed to send message');
     },
   });

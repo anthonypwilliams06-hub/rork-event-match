@@ -78,11 +78,14 @@ serve(async (req) => {
     }
 
     if (existingUser) {
+      console.log("[sign_up] ❌ Duplicate account attempt:", { email });
       return new Response(JSON.stringify({ error: "An account with this email already exists" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    console.log("[sign_up] ✓ Creating new account:", { email });
 
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
@@ -95,7 +98,7 @@ serve(async (req) => {
 
     if (authError || !authData?.user) {
       const message = authError?.message ?? "Auth creation failed";
-      console.error("[sign_up] Auth error:", message);
+      console.error("[sign_up] ❌ Auth error:", message, { email });
       return new Response(JSON.stringify({ error: message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -103,6 +106,7 @@ serve(async (req) => {
     }
 
     const authUserId = authData.user.id;
+    console.log("[sign_up] ✅ Auth user created:", { userId: authUserId });
 
     const { data: existingIdRow, error: existingIdError } = await supabase
       .from("users")
@@ -128,12 +132,13 @@ serve(async (req) => {
       });
 
       if (insertError) {
-        console.error("[sign_up] Insert error:", insertError.message);
+        console.error("[sign_up] ❌ User table insert error:", insertError.message, { userId: authUserId });
         return new Response(JSON.stringify({ error: insertError.message }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      console.log("[sign_up] ✅ User row created:", { userId: authUserId });
     }
 
     const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
@@ -155,6 +160,7 @@ serve(async (req) => {
       );
     }
 
+    console.log("[sign_up] ✅ Signup complete:", { userId: authUserId, email });
     return new Response(
       JSON.stringify({
         userId: authUserId,
@@ -167,7 +173,7 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("[sign_up] Unexpected error:", error);
+    console.error("[sign_up] ❌ Unexpected error:", error);
     const message = error instanceof Error ? error.message : "Unexpected error";
     return new Response(JSON.stringify({ error: message }), {
       status: 500,

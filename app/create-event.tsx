@@ -31,6 +31,8 @@ import { EVENT_CATEGORIES } from '@/constants/interests';
 import { EventCategory } from '@/types';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/contexts/AuthContext';
+import { trackEventCreated, trackEventCreationFailed } from '@/lib/analytics';
+import { logError } from '@/lib/sentry';
 
 export default function CreateEventScreen() {
   const router = useRouter();
@@ -130,7 +132,8 @@ export default function CreateEventScreen() {
     };
 
     try {
-      await createEventMutation.mutateAsync(eventData);
+      const result = await createEventMutation.mutateAsync(eventData);
+      trackEventCreated(result.id || 'unknown', category!, !!location);
       Alert.alert(
         'Success!',
         isDraft ? 'Your event draft has been saved' : 'Your event has been created',
@@ -142,6 +145,9 @@ export default function CreateEventScreen() {
         ]
       );
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      trackEventCreationFailed(errorMessage);
+      logError(error instanceof Error ? error : new Error('Event creation failed'), { userId: user.id });
       Alert.alert('Error', 'Failed to create event. Please try again.');
       console.error('Error creating event:', error);
     }

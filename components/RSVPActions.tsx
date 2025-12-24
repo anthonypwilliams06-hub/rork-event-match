@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-
+import { trackRSVPSubmitted } from '@/lib/analytics';
 import { CheckCircle, Heart, X, Users, Bell, Calendar as CalendarIcon } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { RSVPStatus } from '@/types';
@@ -40,10 +40,14 @@ export default function RSVPActions({
         'This event is at capacity. Would you like to join the waitlist?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Join Waitlist', onPress: () => onStatusChange('going') },
+          { text: 'Join Waitlist', onPress: () => {
+            trackRSVPSubmitted(eventId, 'waitlist');
+            onStatusChange('going');
+          } },
         ]
       );
     } else {
+      trackRSVPSubmitted(eventId, status);
       onStatusChange(status);
     }
   };
