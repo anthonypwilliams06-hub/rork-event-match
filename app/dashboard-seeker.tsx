@@ -20,6 +20,7 @@ import {
   Users,
   Search,
   Bookmark,
+  Plus,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,6 +52,7 @@ export default function SeekerDashboardScreen() {
 
   const addFavoriteMutation = trpc.favorites.add.useMutation();
   const removeFavoriteMutation = trpc.favorites.remove.useMutation();
+  const updateProfileMutation = trpc.profile.update.useMutation();
 
   const events = (eventsQuery.data || []) as EventWithMatch[];
   const favorites = (favoritesQuery.data || []) as FavoriteEvent[];
@@ -117,6 +119,19 @@ export default function SeekerDashboardScreen() {
     return Colors.match.low;
   };
 
+  const handleSwitchToCreator = async () => {
+    try {
+      await updateProfileMutation.mutateAsync({
+        token: token || '',
+        role: 'creator',
+      });
+      
+      router.replace('/dashboard-creator' as any);
+    } catch (error) {
+      console.error('Error switching role:', error);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <LinearGradient
@@ -133,6 +148,13 @@ export default function SeekerDashboardScreen() {
             </Text>
           </View>
           <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.switchRoleButton}
+              onPress={handleSwitchToCreator}
+            >
+              <Plus size={20} color={Colors.text.white} />
+              <Text style={styles.switchRoleText}>Create</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.notificationButton}
               onPress={handleMessagesPress}
@@ -372,7 +394,24 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  switchRoleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  switchRoleText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text.white,
   },
   notificationButton: {
     width: 44,

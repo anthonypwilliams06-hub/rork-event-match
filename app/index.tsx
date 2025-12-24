@@ -78,7 +78,7 @@ export default function RoleSelectionScreen() {
             console.log('[Index] User has profile with role:', role);
             if (role === 'creator') {
               router.replace('/dashboard-creator' as any);
-            } else if (role === 'seeker') {
+            } else if (role === 'seeker' || role === 'both') {
               router.replace('/dashboard-seeker' as any);
             } else {
               router.replace('/events' as any);

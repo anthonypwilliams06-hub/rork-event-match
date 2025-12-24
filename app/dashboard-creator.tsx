@@ -22,6 +22,7 @@ import {
   Users,
   MapPin,
   Bell,
+  Search,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,6 +43,7 @@ export default function CreatorDashboardScreen() {
   );
 
   const deleteEventMutation = trpc.events.delete.useMutation();
+  const updateProfileMutation = trpc.profile.update.useMutation();
 
   const myEvents = (eventsQuery.data || []) as AppEvent[];
 
@@ -99,6 +101,19 @@ export default function CreatorDashboardScreen() {
     router.push('/messages');
   };
 
+  const handleSwitchToSeeker = async () => {
+    try {
+      await updateProfileMutation.mutateAsync({
+        token: token || '',
+        role: 'seeker',
+      });
+      
+      router.replace('/dashboard-seeker' as any);
+    } catch (error) {
+      console.error('Error switching role:', error);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <LinearGradient
@@ -114,19 +129,28 @@ export default function CreatorDashboardScreen() {
               {user?.name || 'Event Creator'}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.notificationButton}
-            onPress={handleMessagesPress}
-          >
-            <Bell size={24} color={Colors.text.white} />
-            {totalMessages > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>
-                  {totalMessages}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.switchRoleButton}
+              onPress={handleSwitchToSeeker}
+            >
+              <Search size={20} color={Colors.text.white} />
+              <Text style={styles.switchRoleText}>Seek</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={handleMessagesPress}
+            >
+              <Bell size={24} color={Colors.text.white} />
+              {totalMessages > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {totalMessages}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </LinearGradient>
 
@@ -360,6 +384,27 @@ const styles = StyleSheet.create({
     color: Colors.text.white,
     opacity: 0.9,
     marginTop: 4,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  switchRoleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  switchRoleText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text.white,
   },
   notificationButton: {
     width: 44,

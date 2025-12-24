@@ -5,6 +5,7 @@ import { UserProfile } from '@/types';
 
 const updateProfileSchema = z.object({
   token: z.string(),
+  role: z.enum(['creator', 'seeker', 'both']).optional(),
   bio: z.string().max(500).optional(),
   photoUrl: z.string().optional(),
   interests: z.array(z.string()).optional(),
@@ -32,6 +33,7 @@ export const updateProfileProcedure = publicProcedure
     }
 
     const updates: Partial<UserProfile> = {};
+    if (input.role !== undefined) updates.role = input.role;
     if (input.bio !== undefined) updates.bio = input.bio;
     if (input.photoUrl !== undefined) updates.photoUrl = input.photoUrl;
     if (input.interests !== undefined) updates.interests = input.interests;

@@ -1,4 +1,4 @@
-export type UserRole = 'creator' | 'seeker' | null;
+export type UserRole = 'creator' | 'seeker' | 'both' | null;
 
 export type RelationshipGoal = 'casual' | 'serious' | 'friendship' | 'open';
 
