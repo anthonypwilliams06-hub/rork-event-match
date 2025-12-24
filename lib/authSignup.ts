@@ -5,16 +5,24 @@ type SignupInput = {
   dateOfBirth: string;
 };
 
-export async function signupViaHTTP(input: SignupInput) {
+type SignupResponse = {
+  success: boolean;
+  error?: string;
+  userId?: string;
+  message?: string;
+};
+
+export async function signupViaHTTP(input: SignupInput): Promise<SignupResponse> {
   const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   
   if (!baseUrl) {
-    throw new Error('Supabase URL not configured');
+    return { success: false, error: 'Supabase URL not configured' };
   }
 
   const url = `${baseUrl}/functions/v1/sign_up`;
 
   console.log('[Auth] Calling signup endpoint:', url);
+  console.log('[Auth] Request body:', JSON.stringify(input, null, 2));
 
   try {
     const response = await fetch(url, {
@@ -26,15 +34,27 @@ export async function signupViaHTTP(input: SignupInput) {
     });
 
     const data = await response.json();
+    console.log('[Auth] Response status:', response.status);
+    console.log('[Auth] Response data:', JSON.stringify(data, null, 2));
 
     if (!response.ok) {
-      throw new Error(data.error || 'Signup failed');
+      return { 
+        success: false, 
+        error: data.error || `Signup failed with status ${response.status}` 
+      };
     }
 
     console.log('[Auth] ✅ Signup successful');
-    return data;
+    return { 
+      success: true, 
+      userId: data.userId,
+      message: data.message 
+    };
   } catch (error) {
-    console.error('[Auth] ❌ Signup error:', error);
-    throw error;
+    console.error('[Auth] ❌ Network or parsing error:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error during signup' 
+    };
   }
 }

@@ -152,7 +152,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         setIsAuthenticated(true);
       }
 
-      return { user: result.user, session: loginData.session };
+      return { userId: result.userId, session: loginData.session };
     } catch (error) {
       console.error('[Auth] ❌ Signup error:', error);
       throw error;
