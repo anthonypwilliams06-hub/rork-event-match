@@ -47,6 +47,11 @@ export default function UserProfileScreen() {
     { enabled: !!id }
   );
 
+  const verificationQuery = trpc.verification.status.useQuery(
+    { userId: id || '' },
+    { enabled: !!id }
+  );
+
   const blockMutation = trpc.blocking.block.useMutation({
     onSuccess: () => {
       Alert.alert('Success', 'User blocked');
@@ -72,6 +77,7 @@ export default function UserProfileScreen() {
   const profileData = user;
   const stats = statsQuery.data?.stats;
   const isOwnProfile = user?.id === id;
+  const isVerified = verificationQuery.data?.status === 'verified';
 
   const handleMessage = () => {
     if (!id) return;
@@ -174,9 +180,9 @@ export default function UserProfileScreen() {
 
           <View style={styles.nameRow}>
             <Text style={styles.name}>{profileData.name}</Text>
-            {isCreator && (
+            {isVerified && (
               <View style={styles.verifiedBadge}>
-                <Shield size={18} color={Colors.coral} />
+                <Shield size={18} color={Colors.coral} fill={Colors.coral} />
               </View>
             )}
           </View>

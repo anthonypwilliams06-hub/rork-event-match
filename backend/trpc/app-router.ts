@@ -26,6 +26,7 @@ import { listRatingsProcedure } from "./routes/ratings/list";
 import { blockUserProcedure } from "./routes/blocking/block";
 import { unblockUserProcedure } from "./routes/blocking/unblock";
 import { reportUserProcedure } from "./routes/blocking/report";
+import { reportEventProcedure } from "./routes/blocking/report-event";
 import { listNotificationsProcedure } from "./routes/notifications/list";
 import { markReadProcedure as markNotificationReadProcedure } from "./routes/notifications/mark-read";
 import { markAllReadProcedure } from "./routes/notifications/mark-all-read";
@@ -89,6 +90,7 @@ export const appRouter = createTRPCRouter({
     block: blockUserProcedure,
     unblock: unblockUserProcedure,
     report: reportUserProcedure,
+    reportEvent: reportEventProcedure,
   }),
   notifications: createTRPCRouter({
     list: listNotificationsProcedure,

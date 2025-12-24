@@ -618,6 +618,19 @@ export class SupabaseDB {
     return this.mapBlockedUserFromDB(data);
   }
 
+  async getBlockedUserIds(blockerId: string): Promise<string[]> {
+    const { data, error } = await this.getClient()
+      .from('blocked_users')
+      .select('blocked_id')
+      .eq('blocker_id', blockerId);
+
+    if (error) {
+      console.error('Failed to get blocked user IDs:', error);
+      return [];
+    }
+    return data.map(row => row.blocked_id);
+  }
+
   async getBlockedUsersByBlockerId(blockerId: string): Promise<BlockedUser[]> {
     const { data, error } = await this.getClient()
       .from('blocked_users')

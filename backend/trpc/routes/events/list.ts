@@ -74,6 +74,14 @@ export const listEventsProcedure = publicProcedure
     let events = input?.creatorId 
       ? await db.getEventsByCreatorId(input.creatorId)
       : await db.getAllEvents();
+
+    if (input?.token) {
+      const { data: { user: authUser } } = await supabase.auth.getUser(input.token);
+      if (authUser) {
+        const blockedUsers = await db.getBlockedUserIds(authUser.id);
+        events = events.filter(e => !blockedUsers.includes(e.creatorId));
+      }
+    }
     
     if (!input?.includeDrafts) {
       events = events.filter(e => !e.isDraft);

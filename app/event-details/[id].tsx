@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Modal,
+  Pressable,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
@@ -24,12 +27,14 @@ import {
   Heart,
   MessageCircle,
   UserCircle,
+  Flag,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/contexts/AuthContext';
 import { EventStatus } from '@/types';
 import RSVPActions from '@/components/RSVPActions';
+import { shouldShowExactLocation, getApproximateLocation } from '@/lib/location-privacy';
 
 export default function EventDetailsScreen() {
   const router = useRouter();
@@ -38,6 +43,9 @@ export default function EventDetailsScreen() {
   const [showMenu, setShowMenu] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [isWaitlisted, setIsWaitlisted] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDescription, setReportDescription] = useState('');
 
   const eventQuery = trpc.events.get.useQuery({ id: id || '' }, {
     enabled: !!id,
@@ -89,6 +97,16 @@ export default function EventDetailsScreen() {
 
   const event = eventQuery.data;
   const isOwner = user?.id === event?.creatorId;
+  
+  const rsvpStatus = rsvpStatusQuery.data?.status;
+  const showExactLocation = shouldShowExactLocation(
+    isOwner,
+    !!rsvpStatus,
+    rsvpStatus
+  );
+  const displayLocation = event && !showExactLocation 
+    ? getApproximateLocation(event.location) 
+    : event?.location;
 
   const addFavoriteMutation = trpc.favorites.add.useMutation({
     onSuccess: () => {
@@ -104,6 +122,18 @@ export default function EventDetailsScreen() {
     onSuccess: () => {
       setIsFavorited(false);
       Alert.alert('Success', 'Removed from favorites');
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message);
+    },
+  });
+
+  const reportEventMutation = trpc.blocking.reportEvent.useMutation({
+    onSuccess: () => {
+      Alert.alert('Success', 'Event reported. Thank you for helping keep our community safe.');
+      setShowReportModal(false);
+      setReportReason('');
+      setReportDescription('');
     },
     onError: (error) => {
       Alert.alert('Error', error.message);
@@ -216,6 +246,25 @@ export default function EventDetailsScreen() {
       addFavoriteMutation.mutate({ token, eventId: event.id });
     }
   };
+
+  const handleReportEvent = () => {
+    if (!token || !event || !reportReason.trim()) return;
+    reportEventMutation.mutate({
+      token,
+      eventId: event.id,
+      reason: reportReason,
+      description: reportDescription || undefined,
+    });
+  };
+
+  const reportReasons = [
+    'Inappropriate content',
+    'Misleading information',
+    'Spam',
+    'Scam or fraud',
+    'Unsafe location',
+    'Other',
+  ];
 
   const handleViewCreatorProfile = () => {
     if (!event) return;
@@ -456,7 +505,10 @@ export default function EventDetailsScreen() {
 
           <View style={styles.infoRow}>
             <MapPin size={20} color={Colors.text.secondary} />
-            <Text style={styles.infoText}>{event.location}</Text>
+            <Text style={styles.infoText}>
+              {displayLocation}
+              {!showExactLocation && ' (approximate area)'}
+            </Text>
           </View>
 
           {event.capacity && (
@@ -532,6 +584,14 @@ export default function EventDetailsScreen() {
                     Message
                   </Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.reportButton]}
+                  onPress={() => setShowReportModal(true)}
+                  activeOpacity={0.8}
+                >
+                  <Flag size={20} color={Colors.text.secondary} />
+                </TouchableOpacity>
               </View>
             </>
           )}
@@ -559,6 +619,81 @@ export default function EventDetailsScreen() {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showReportModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowReportModal(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Report Event</Text>
+              <TouchableOpacity
+                onPress={() => setShowReportModal(false)}
+                style={styles.closeButton}
+              >
+                <X size={24} color={Colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Reason *</Text>
+              {reportReasons.map((reason) => (
+                <TouchableOpacity
+                  key={reason}
+                  style={[
+                    styles.reasonOption,
+                    reportReason === reason && styles.reasonOptionActive,
+                  ]}
+                  onPress={() => setReportReason(reason)}
+                >
+                  <Text
+                    style={[
+                      styles.reasonText,
+                      reportReason === reason && styles.reasonTextActive,
+                    ]}
+                  >
+                    {reason}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>
+                Additional details (optional)
+              </Text>
+              <TextInput
+                style={styles.textArea}
+                placeholder="Provide more information..."
+                placeholderTextColor={Colors.text.secondary}
+                value={reportDescription}
+                onChangeText={setReportDescription}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+              />
+
+              <TouchableOpacity
+                style={[
+                  styles.submitButton,
+                  (!reportReason.trim() || reportEventMutation.isPending) &&
+                    styles.submitButtonDisabled,
+                ]}
+                onPress={handleReportEvent}
+                disabled={!reportReason.trim() || reportEventMutation.isPending}
+              >
+                <Text style={styles.submitButtonText}>
+                  {reportEventMutation.isPending ? 'Submitting...' : 'Submit Report'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -844,6 +979,101 @@ const styles = StyleSheet.create({
   },
   publishButtonText: {
     fontSize: 17,
+    fontWeight: '600' as const,
+    color: Colors.text.white,
+  },
+  reportButton: {
+    width: 52,
+    backgroundColor: Colors.background.secondary,
+    borderWidth: 2,
+    borderColor: Colors.border.light,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: Colors.background.card,
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '90%',
+    shadowColor: Colors.shadow.color,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: Colors.text.primary,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 24,
+  },
+  inputLabel: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text.primary,
+    marginBottom: 12,
+  },
+  reasonOption: {
+    backgroundColor: Colors.background.secondary,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  reasonOptionActive: {
+    borderColor: Colors.coral,
+    backgroundColor: '#FFF0F0',
+  },
+  reasonText: {
+    fontSize: 15,
+    color: Colors.text.primary,
+  },
+  reasonTextActive: {
+    color: Colors.coral,
+    fontWeight: '600' as const,
+  },
+  textArea: {
+    backgroundColor: Colors.background.secondary,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: Colors.text.primary,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: 20,
+  },
+  submitButton: {
+    backgroundColor: Colors.coral,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  submitButtonDisabled: {
+    opacity: 0.5,
+  },
+  submitButtonText: {
+    fontSize: 16,
     fontWeight: '600' as const,
     color: Colors.text.white,
   },
