@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { User } from '@/types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { signupViaEdgeFunction } from '@/lib/authSignup';
+
 
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -117,43 +117,49 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const signup = async (email: string, password: string, name: string, dateOfBirth: Date) => {
     try {
-      console.log('[Auth] Starting signup for:', email);
-      console.log('[Auth] Data:', { email, name, dateOfBirth: dateOfBirth.toISOString() });
-      
-      const result = await signupViaEdgeFunction({
-        email,
-        password,
-        name,
-        dateOfBirth: dateOfBirth.toISOString(),
-      });
-
-      console.log('[Auth] Signup successful via Edge Function:', result);
-      console.log('[Auth] Now logging in...');
-      
-      const { data: loginResult, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        throw new Error(error.message);
+      if (!isSupabaseConfigured || !supabase) {
+        throw new Error('Supabase not configured');
       }
 
-      if (loginResult.session && loginResult.user) {
-        setSession(loginResult.session);
-        setUser(mapSupabaseUser(loginResult.user, undefined));
+      console.log('[Auth] Starting signup for:', email);
+      
+      const age = Math.floor((Date.now() - dateOfBirth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      
+      if (age < 18) {
+        throw new Error('You must be at least 18 years old to create an account');
+      }
+
+      const { data: signupData, error: signupError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            date_of_birth: dateOfBirth.toISOString(),
+            age,
+          },
+        },
+      });
+
+      if (signupError) {
+        throw new Error(signupError.message);
+      }
+
+      if (!signupData.user) {
+        throw new Error('Failed to create account');
+      }
+
+      console.log('[Auth] Supabase Auth user created:', signupData.user.id);
+
+      if (signupData.session) {
+        setSession(signupData.session);
+        setUser(mapSupabaseUser(signupData.user, undefined));
         setIsAuthenticated(true);
       }
 
-      return { ...result, session: loginResult.session };
+      return { user: signupData.user, session: signupData.session };
     } catch (error) {
-      console.error('[Auth] ❌ Signup error details:', error);
-      
-      if (error instanceof Error) {
-        console.error('[Auth] Error message:', error.message);
-        console.error('[Auth] Error stack:', error.stack);
-      }
-      
+      console.error('[Auth] ❌ Signup error:', error);
       throw error;
     }
   };
