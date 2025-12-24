@@ -161,16 +161,26 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const login = async (email: string, password: string) => {
     try {
+      if (!isSupabaseConfigured || !supabase) {
+        throw new Error('Supabase not configured');
+      }
+
+      console.log('[Auth] Attempting login for:', email);
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error('[Auth] Login error:', error.message);
+        console.error('[Auth] Error status:', error.status);
+        console.error('[Auth] Error details:', JSON.stringify(error, null, 2));
         throw new Error(error.message);
       }
 
       if (data.session && data.user) {
+        console.log('[Auth] ✅ Login successful for user:', data.user.id);
         setSession(data.session);
         setUser(mapSupabaseUser(data.user, undefined));
         setIsAuthenticated(true);
@@ -178,7 +188,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       return data;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('[Auth] Login error:', error);
       throw error;
     }
   };
