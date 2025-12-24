@@ -268,18 +268,39 @@ export interface TrustedContact {
   email?: string;
 }
 
-export type RSVPStatus = 'going' | 'interested' | 'not_going';
+export type RSVPStatus = 'going' | 'interested' | 'not_going' | 'waitlist';
 
 export interface EventAttendee {
   id: string;
   eventId: string;
   userId: string;
-  status: 'interested' | 'attending' | 'checked_in' | 'completed';
-  rsvpStatus?: RSVPStatus;
+  status: RSVPStatus;
+  waitlistPosition?: number;
   ticketId?: string;
   paidAmount?: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface EventReminder {
+  id: string;
+  eventId: string;
+  userId: string;
+  reminderType: '24h' | '2h' | '1h' | 'custom';
+  scheduledTime: Date;
+  sent: boolean;
+  sentAt?: Date;
+  createdAt: Date;
+}
+
+export interface EventUpdate {
+  id: string;
+  eventId: string;
+  updateType: 'time_change' | 'location_change' | 'cancellation' | 'info_update';
+  oldValue?: string;
+  newValue?: string;
+  message?: string;
+  createdAt: Date;
 }
 
 export interface EventAnalytics {

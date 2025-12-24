@@ -24,14 +24,12 @@ import {
   Heart,
   MessageCircle,
   UserCircle,
-  Star,
-  Bell,
-  Download,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/contexts/AuthContext';
-import { EventStatus, RSVPStatus } from '@/types';
+import { EventStatus } from '@/types';
+import RSVPActions from '@/components/RSVPActions';
 
 export default function EventDetailsScreen() {
   const router = useRouter();
@@ -39,11 +37,41 @@ export default function EventDetailsScreen() {
   const { user, token } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
-  const [rsvpStatus, setRsvpStatus] = useState<RSVPStatus | null>(null);
-  const [reminderSet, setReminderSet] = useState(false);
+  const [isWaitlisted, setIsWaitlisted] = useState(false);
 
   const eventQuery = trpc.events.get.useQuery({ id: id || '' }, {
     enabled: !!id,
+  });
+
+  const rsvpStatusQuery = trpc.rsvp.getStatus.useQuery(
+    { token: token || '', eventId: id || '' },
+    { enabled: !!token && !!id }
+  );
+
+  const updateRSVPMutation = trpc.rsvp.updateStatus.useMutation({
+    onSuccess: (data) => {
+      setIsWaitlisted(data.waitlisted || false);
+      rsvpStatusQuery.refetch();
+      eventQuery.refetch();
+      Alert.alert(
+        'RSVP Updated',
+        data.waitlisted 
+          ? "You've been added to the waitlist. We'll notify you if a spot opens up!"
+          : 'Your RSVP has been updated'
+      );
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message);
+    },
+  });
+
+  const setReminderMutation = trpc.rsvp.setReminder.useMutation({
+    onSuccess: () => {
+      Alert.alert('Reminder Set', "You'll be notified 2 hours before the event");
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message);
+    },
   });
 
   const updateEventMutation = trpc.events.update.useMutation({
@@ -199,37 +227,34 @@ export default function EventDetailsScreen() {
     router.push(`/chat/${event.creatorId}` as any);
   };
 
-  const handleRSVP = async (status: RSVPStatus) => {
-    if (!user || !event) return;
-    
-    try {
-      setRsvpStatus(status);
-      Alert.alert(
-        'RSVP Confirmed',
-        `You're marked as ${status === 'going' ? 'Going' : status === 'interested' ? 'Interested' : 'Not Going'}`,
-        [
-          {
-            text: 'Set Reminder',
-            onPress: () => handleSetReminder(),
-          },
-          { text: 'OK' }
-        ]
-      );
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update RSVP status');
-      console.error('RSVP error:', error);
-    }
+  const handleRSVPChange = (status: 'going' | 'interested' | 'not_going') => {
+    if (!token || !event) return;
+    updateRSVPMutation.mutate({
+      token,
+      eventId: event.id,
+      status,
+    });
   };
 
   const handleSetReminder = () => {
-    setReminderSet(true);
-    Alert.alert('Reminder Set', 'You will be notified 1 hour before the event');
+    if (!token || !event) return;
+    setReminderMutation.mutate({
+      token,
+      eventId: event.id,
+      reminderType: '2h',
+    });
   };
 
   const handleAddToCalendar = () => {
+    if (!event) return;
+    const eventDate = new Date(event.date);
+    const [hours, minutes] = event.time.match(/\d+/g)?.map(Number) || [0, 0];
+    const isPM = event.time.toLowerCase().includes('pm');
+    eventDate.setHours(isPM && hours !== 12 ? hours + 12 : hours, minutes);
+    
     Alert.alert(
       'Add to Calendar',
-      'This feature will add the event to your device calendar. Coming soon!',
+      `Event: ${event.title}\nDate: ${eventDate.toLocaleString()}\n\nThis will be available when you download the app from the store.`,
       [{ text: 'OK' }]
     );
   };
@@ -464,104 +489,17 @@ export default function EventDetailsScreen() {
                 </View>
               </TouchableOpacity>
 
-              <View style={styles.rsvpSection}>
-                <Text style={styles.rsvpTitle}>RSVP to this event</Text>
-                <View style={styles.rsvpButtonsContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.rsvpButton,
-                      rsvpStatus === 'going' && styles.rsvpButtonGoing,
-                    ]}
-                    onPress={() => handleRSVP('going')}
-                    activeOpacity={0.8}
-                  >
-                    <CheckCircle
-                      size={20}
-                      color={rsvpStatus === 'going' ? Colors.text.white : '#10B981'}
-                    />
-                    <Text
-                      style={[
-                        styles.rsvpButtonText,
-                        rsvpStatus === 'going' && styles.rsvpButtonTextActive,
-                      ]}
-                    >
-                      Going
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.rsvpButton,
-                      rsvpStatus === 'interested' && styles.rsvpButtonInterested,
-                    ]}
-                    onPress={() => handleRSVP('interested')}
-                    activeOpacity={0.8}
-                  >
-                    <Star
-                      size={20}
-                      color={rsvpStatus === 'interested' ? Colors.text.white : '#F59E0B'}
-                    />
-                    <Text
-                      style={[
-                        styles.rsvpButtonText,
-                        rsvpStatus === 'interested' && styles.rsvpButtonTextActive,
-                      ]}
-                    >
-                      Interested
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.rsvpButton,
-                      rsvpStatus === 'not_going' && styles.rsvpButtonNotGoing,
-                    ]}
-                    onPress={() => handleRSVP('not_going')}
-                    activeOpacity={0.8}
-                  >
-                    <X
-                      size={20}
-                      color={rsvpStatus === 'not_going' ? Colors.text.white : Colors.text.secondary}
-                    />
-                    <Text
-                      style={[
-                        styles.rsvpButtonText,
-                        rsvpStatus === 'not_going' && styles.rsvpButtonTextActive,
-                      ]}
-                    >
-                      Not Going
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {(rsvpStatus === 'going' || rsvpStatus === 'interested') && (
-                <View style={styles.reminderSection}>
-                  <TouchableOpacity
-                    style={[styles.reminderButton, reminderSet && styles.reminderButtonActive]}
-                    onPress={handleSetReminder}
-                    activeOpacity={0.8}
-                    disabled={reminderSet}
-                  >
-                    <Bell
-                      size={20}
-                      color={reminderSet ? '#10B981' : Colors.coral}
-                    />
-                    <Text style={[styles.reminderButtonText, reminderSet && styles.reminderButtonTextActive]}>
-                      {reminderSet ? 'Reminder Set ✓' : 'Set Reminder'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.calendarButton}
-                    onPress={handleAddToCalendar}
-                    activeOpacity={0.8}
-                  >
-                    <Download size={20} color={Colors.coral} />
-                    <Text style={styles.calendarButtonText}>Add to Calendar</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              <RSVPActions
+                eventId={event.id}
+                currentStatus={rsvpStatusQuery.data?.status || null}
+                capacity={event.capacity}
+                spotsAvailable={event.spotsAvailable}
+                waitlisted={isWaitlisted}
+                onStatusChange={handleRSVPChange}
+                onSetReminder={handleSetReminder}
+                onAddToCalendar={handleAddToCalendar}
+                disabled={updateRSVPMutation.isPending}
+              />
 
               <View style={styles.actionButtonsContainer}>
                 <TouchableOpacity

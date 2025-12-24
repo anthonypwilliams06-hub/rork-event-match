@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { User, UserProfile, Event, FavoriteEvent, Message, Conversation, Rating, BlockedUser, Report, Notification, NotificationSettings, EventSafetyInfo, EventAttendee, VerificationRequest, Payment, Payout } from '@/types';
+import { User, UserProfile, Event, FavoriteEvent, Message, Conversation, Rating, BlockedUser, Report, Notification, NotificationSettings, EventSafetyInfo, EventAttendee, VerificationRequest, Payment, Payout, EventReminder, EventUpdate } from '@/types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -1076,6 +1076,81 @@ export class SupabaseDB {
     return this.mapPayoutFromDB(data);
   }
 
+  async createEventReminder(reminder: EventReminder): Promise<EventReminder> {
+    const { data, error } = await this.getClient()
+      .from('event_reminders')
+      .insert({
+        id: reminder.id,
+        event_id: reminder.eventId,
+        user_id: reminder.userId,
+        reminder_type: reminder.reminderType,
+        scheduled_time: reminder.scheduledTime,
+        sent: reminder.sent,
+        sent_at: reminder.sentAt,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create event reminder: ${error.message}`);
+    return this.mapEventReminderFromDB(data);
+  }
+
+  async getEventReminders(eventId: string, userId: string): Promise<EventReminder[]> {
+    const { data, error } = await this.getClient()
+      .from('event_reminders')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('user_id', userId);
+
+    if (error) throw new Error(`Failed to get event reminders: ${error.message}`);
+    return data.map(reminder => this.mapEventReminderFromDB(reminder));
+  }
+
+  async updateEventReminder(id: string, updates: Partial<EventReminder>): Promise<EventReminder | null> {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.sent !== undefined) dbUpdates.sent = updates.sent;
+    if (updates.sentAt !== undefined) dbUpdates.sent_at = updates.sentAt;
+
+    const { data, error } = await this.getClient()
+      .from('event_reminders')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update event reminder: ${error.message}`);
+    return this.mapEventReminderFromDB(data);
+  }
+
+  async createEventUpdate(eventUpdate: EventUpdate): Promise<EventUpdate> {
+    const { data, error } = await this.getClient()
+      .from('event_updates')
+      .insert({
+        id: eventUpdate.id,
+        event_id: eventUpdate.eventId,
+        update_type: eventUpdate.updateType,
+        old_value: eventUpdate.oldValue,
+        new_value: eventUpdate.newValue,
+        message: eventUpdate.message,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create event update: ${error.message}`);
+    return this.mapEventUpdateFromDB(data);
+  }
+
+  async getEventUpdates(eventId: string): Promise<EventUpdate[]> {
+    const { data, error } = await this.getClient()
+      .from('event_updates')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get event updates: ${error.message}`);
+    return data.map(update => this.mapEventUpdateFromDB(update));
+  }
+
   private mapUserFromDB(data: Record<string, unknown>): User {
     return {
       id: data.id as string,
@@ -1285,6 +1360,31 @@ export class SupabaseDB {
       eventIds: data.event_ids as string[],
       createdAt: new Date(data.created_at as string),
       completedAt: data.completed_at ? new Date(data.completed_at as string) : undefined,
+    };
+  }
+
+  private mapEventReminderFromDB(data: Record<string, unknown>): EventReminder {
+    return {
+      id: data.id as string,
+      eventId: data.event_id as string,
+      userId: data.user_id as string,
+      reminderType: data.reminder_type as EventReminder['reminderType'],
+      scheduledTime: new Date(data.scheduled_time as string),
+      sent: data.sent as boolean,
+      sentAt: data.sent_at ? new Date(data.sent_at as string) : undefined,
+      createdAt: new Date(data.created_at as string),
+    };
+  }
+
+  private mapEventUpdateFromDB(data: Record<string, unknown>): EventUpdate {
+    return {
+      id: data.id as string,
+      eventId: data.event_id as string,
+      updateType: data.update_type as EventUpdate['updateType'],
+      oldValue: data.old_value as string | undefined,
+      newValue: data.new_value as string | undefined,
+      message: data.message as string | undefined,
+      createdAt: new Date(data.created_at as string),
     };
   }
 }

@@ -5,7 +5,7 @@ import { db } from "@/backend/db";
 const joinEventSchema = z.object({
   token: z.string(),
   eventId: z.string(),
-  status: z.enum(['interested', 'attending']).default('interested'),
+  status: z.enum(['going', 'interested', 'not_going']).default('interested'),
 });
 
 export const joinEventProcedure = publicProcedure

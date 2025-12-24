@@ -40,6 +40,10 @@ import { checkOutProcedure } from "./routes/safety/check-out";
 import { joinEventProcedure } from "./routes/attendees/join";
 import { listAttendeesProcedure } from "./routes/attendees/list";
 import { getEventAnalyticsProcedure } from "./routes/analytics/event-analytics";
+import { updateRSVPProcedure } from "./routes/rsvp/update-status";
+import { setReminderProcedure } from "./routes/rsvp/set-reminder";
+import { getRSVPStatusProcedure } from "./routes/rsvp/get-status";
+import { createEventUpdateProcedure } from "./routes/events/create-update";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -63,6 +67,7 @@ export const appRouter = createTRPCRouter({
     delete: deleteEventProcedure,
     list: listEventsProcedure,
     get: getEventProcedure,
+    createUpdate: createEventUpdateProcedure,
   }),
   favorites: createTRPCRouter({
     add: addFavoriteProcedure,
@@ -105,6 +110,11 @@ export const appRouter = createTRPCRouter({
   attendees: createTRPCRouter({
     join: joinEventProcedure,
     list: listAttendeesProcedure,
+  }),
+  rsvp: createTRPCRouter({
+    updateStatus: updateRSVPProcedure,
+    setReminder: setReminderProcedure,
+    getStatus: getRSVPStatusProcedure,
   }),
   analytics: createTRPCRouter({
     eventAnalytics: getEventAnalyticsProcedure,
