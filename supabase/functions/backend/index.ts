@@ -256,7 +256,17 @@ const profileRouter = router({
         updated_at: new Date().toISOString(),
       });
 
-      return profile;
+      return {
+        profile: {
+          id: profile.id,
+          user_id: profile.user_id,
+          bio: profile.bio,
+          interests: profile.interests,
+          profile_picture: profile.profile_picture,
+          created_at: profile.created_at,
+          updated_at: profile.updated_at,
+        },
+      };
     }),
 
   update: publicProcedure
@@ -279,7 +289,17 @@ const profileRouter = router({
         throw new Error(error.message);
       }
 
-      return data;
+      return {
+        profile: {
+          id: data.id,
+          user_id: data.user_id,
+          bio: data.bio,
+          interests: data.interests,
+          profile_picture: data.profile_picture,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+        },
+      };
     }),
 
   get: publicProcedure
