@@ -21,6 +21,7 @@ import {
   Search,
   Bookmark,
   Plus,
+  UserCircle,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -133,6 +134,10 @@ export default function SeekerDashboardScreen() {
     }
   };
 
+  const handleProfilePress = () => {
+    router.push('/profile');
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <LinearGradient
@@ -175,6 +180,12 @@ export default function SeekerDashboardScreen() {
               onPress={() => {}}
             >
               <Bell size={24} color={Colors.text.white} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={handleProfilePress}
+            >
+              <UserCircle size={24} color={Colors.text.white} />
             </TouchableOpacity>
           </View>
         </View>

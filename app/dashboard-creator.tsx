@@ -23,6 +23,7 @@ import {
   MapPin,
   Bell,
   Search,
+  UserCircle,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -115,6 +116,10 @@ export default function CreatorDashboardScreen() {
     }
   };
 
+  const handleProfilePress = () => {
+    router.push('/profile');
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <LinearGradient
@@ -150,6 +155,12 @@ export default function CreatorDashboardScreen() {
                   </Text>
                 </View>
               )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={handleProfilePress}
+            >
+              <UserCircle size={24} color={Colors.text.white} />
             </TouchableOpacity>
           </View>
         </View>
