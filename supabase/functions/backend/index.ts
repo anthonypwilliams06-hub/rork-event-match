@@ -283,12 +283,12 @@ const appRouter = router({
         title: z.string().min(1),
         description: z.string().min(1),
         category: z.enum(['food_drink', 'outdoor', 'entertainment', 'sports', 'arts_culture', 'social', 'other']),
-        date: z.date(),
+        date: z.coerce.date(),
         time: z.string(),
         location: z.string().min(1),
         latitude: z.number().optional(),
         longitude: z.number().optional(),
-        imageUrl: z.string().url(),
+        imageUrl: z.string().min(1),
         capacity: z.number().min(1).optional(),
         vibes: z.array(z.enum(['chill', 'adventurous', 'romantic', 'social', 'intimate', 'energetic', 'cultural', 'fun'])).default([]),
         isDraft: z.boolean().default(false),
@@ -300,13 +300,15 @@ const appRouter = router({
       .mutation(async ({ input }: any) => {
         console.log('[Events] Creating event:', input.title);
         
+        const eventDate = input.date instanceof Date ? input.date : new Date(input.date);
+        
         const { data, error } = await supabaseAdmin
           .from('events')
           .insert([{
             creator_id: input.creatorId,
             title: input.title,
             description: input.description,
-            date: input.date.toISOString(),
+            date: eventDate.toISOString(),
             time: input.time,
             location: input.location,
             latitude: input.latitude || null,
@@ -336,7 +338,33 @@ const appRouter = router({
         }
 
         console.log('[Events] Event created:', data.id);
-        return data;
+        
+        return {
+          id: data.id,
+          creatorId: data.creator_id,
+          title: data.title,
+          description: data.description,
+          date: new Date(data.date),
+          time: data.time,
+          location: data.location,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          category: data.category,
+          vibes: data.vibes || [],
+          imageUrl: data.image_url,
+          capacity: data.capacity,
+          spotsAvailable: data.spots_available,
+          attendeeIds: data.attendee_ids || [],
+          status: data.status,
+          isDraft: data.is_draft,
+          isPaid: data.is_paid,
+          price: data.price,
+          currency: data.currency,
+          views: data.views,
+          likes: data.likes,
+          createdAt: new Date(data.created_at),
+          updatedAt: new Date(data.updated_at),
+        };
       }),
     update: publicProcedure.mutation(() => ({ message: 'Not implemented' })),
     delete: publicProcedure.mutation(() => ({ message: 'Not implemented' })),
