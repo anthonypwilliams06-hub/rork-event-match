@@ -530,7 +530,9 @@ const appRouter = router({
       }),
   }),
   notifications: router({
-    list: publicProcedure.query(() => ({ notifications: [] })),
+    list: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .query(() => []),
     markRead: publicProcedure
       .input(z.object({ notificationId: z.string() }))
       .mutation(async ({ input }: any) => {
