@@ -55,8 +55,10 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     { 
       enabled: !authLoading && isAuthenticated && !!token, 
       refetchInterval: 30000,
-      retry: 1,
-      select: (data) => data || [],
+      retry: false,
+      staleTime: 30000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     }
   );
 
@@ -88,9 +90,12 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   }, [user, loadSettings]);
 
   useEffect(() => {
-    if (notificationsQuery.data) {
-      const unread = notificationsQuery.data.filter((n: Notification) => !n.read).length;
+    const data = notificationsQuery.data;
+    if (data && Array.isArray(data)) {
+      const unread = data.filter((n: Notification) => !n.read).length;
       setUnreadCount(unread);
+    } else {
+      setUnreadCount(0);
     }
   }, [notificationsQuery.data]);
 
@@ -227,10 +232,14 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     });
   };
 
+  const notifications = notificationsQuery.data && Array.isArray(notificationsQuery.data) 
+    ? notificationsQuery.data 
+    : [];
+
   return {
     expoPushToken,
     permissionStatus,
-    notifications: notificationsQuery.data || [],
+    notifications,
     unreadCount,
     settings,
     isLoading: notificationsQuery.isLoading,

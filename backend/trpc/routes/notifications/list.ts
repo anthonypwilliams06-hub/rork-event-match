@@ -15,5 +15,5 @@ export const listNotificationsProcedure = publicProcedure
     
     const notifications = await db.getNotificationsByUserId(user.id);
     
-    return notifications;
+    return notifications || [];
   });

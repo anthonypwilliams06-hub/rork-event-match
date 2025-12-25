@@ -20,7 +20,8 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuth();
+  const auth = useAuth();
+  const { login } = auth || {};
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -45,6 +46,11 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
+    if (!login) {
+      Alert.alert('Error', 'Authentication system is initializing. Please wait.');
+      return;
+    }
+
     if (validateForm()) {
       setIsLoading(true);
       try {

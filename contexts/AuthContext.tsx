@@ -14,6 +14,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -77,6 +78,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         console.error('[Auth] Error setting up auth:', error);
         if (isMounted) {
           setIsLoading(false);
+          setIsInitialized(true);
         }
       }
     };
@@ -94,21 +96,23 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const loadSession = async () => {
     if (!isSupabaseConfigured || !supabase) {
       setIsLoading(false);
+      setIsInitialized(true);
       return;
     }
 
     try {
-      console.log('Loading session from Supabase...');
+      console.log('[Auth] Loading session from Supabase...');
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (error) {
-        console.error('Error loading session:', error.message);
+        console.error('[Auth] Error loading session:', error.message);
         setIsLoading(false);
+        setIsInitialized(true);
         return;
       }
 
       if (session) {
-        console.log('Session found:', session.user.id);
+        console.log('[Auth] Session found:', session.user.id);
         setSession(session);
         
         const { data: profileData } = await supabase
@@ -120,12 +124,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         setUser(mapSupabaseUser(session.user, profileData ? mapProfileData(profileData) : undefined));
         setIsAuthenticated(true);
       } else {
-        console.log('No session found');
+        console.log('[Auth] No session found');
       }
     } catch (error) {
       console.warn('[Auth] Could not load session:', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsLoading(false);
+      setIsInitialized(true);
     }
   };
 
@@ -309,6 +314,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     session,
     isLoading,
     isAuthenticated,
+    isInitialized,
     signup,
     login,
     logout,
