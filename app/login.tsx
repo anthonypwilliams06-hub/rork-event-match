@@ -51,7 +51,7 @@ export default function LoginScreen() {
         await login(email, password);
         console.log('Login successful');
         
-        router.replace('/create-profile' as any);
+        router.replace('/' as any);
       } catch (error: any) {
         console.error('Login error:', error);
         Alert.alert('Error', error?.message || 'Invalid email or password.');

@@ -42,9 +42,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             
             if (session?.user) {
               try {
-                const profile = null;
+                const { data: profileData } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('user_id', session.user.id)
+                  .single();
+                
                 if (!isMounted) return;
-                setUser(mapSupabaseUser(session.user, profile ?? undefined));
+                setUser(mapSupabaseUser(session.user, profileData ? mapProfileData(profileData) : undefined));
                 setIsAuthenticated(true);
               } catch (error) {
                 console.warn('[Auth] Error fetching profile:', error);
@@ -106,7 +111,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         console.log('Session found:', session.user.id);
         setSession(session);
         
-        setUser(mapSupabaseUser(session.user, undefined));
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .single();
+        
+        setUser(mapSupabaseUser(session.user, profileData ? mapProfileData(profileData) : undefined));
         setIsAuthenticated(true);
       } else {
         console.log('No session found');
@@ -221,7 +232,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       if (data.session && data.user) {
         console.log('[Auth] ✅ Login successful for user:', data.user.id);
         setSession(data.session);
-        setUser(mapSupabaseUser(data.user, undefined));
+        
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', data.user.id)
+          .single();
+        
+        setUser(mapSupabaseUser(data.user, profileData ? mapProfileData(profileData) : undefined));
         setIsAuthenticated(true);
         setSentryUser(data.user.id, data.user.email || undefined);
         trackLoginCompleted(data.user.id);
@@ -309,5 +327,25 @@ function mapSupabaseUser(user: SupabaseUser, profile?: User['profile']): User {
     age: 18,
     createdAt: new Date(user.created_at),
     profile,
+  };
+}
+
+function mapProfileData(data: any): User['profile'] {
+  return {
+    userId: data.user_id,
+    role: data.role,
+    bio: data.bio || undefined,
+    interests: data.interests || [],
+    personalityTraits: data.personality_traits || [],
+    relationshipGoal: data.relationship_goal || undefined,
+    location: data.location,
+    ageRangeMin: data.age_range_min || undefined,
+    ageRangeMax: data.age_range_max || undefined,
+    verificationStatus: data.verification_status || 'unverified',
+    dealbreakers: data.dealbreakers || undefined,
+    photoUrl: data.photo_url || undefined,
+    verificationPhoto: data.verification_photo || undefined,
+    premiumTier: data.premium_tier || 'free',
+    premiumExpiresAt: data.premium_expires_at ? new Date(data.premium_expires_at) : undefined,
   };
 }
