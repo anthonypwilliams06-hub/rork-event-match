@@ -10,10 +10,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { 
   UserCircle, 
   MapPin, 
@@ -30,12 +33,14 @@ import { INTERESTS, PERSONALITY_TRAITS } from '@/constants/interests';
 import { useAuth } from '@/contexts/AuthContext';
 import { trpcClient } from '@/lib/trpc';
 import { RelationshipGoal } from '@/types';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, token, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
 
   const profile = user?.profile;
   const isCreator = profile?.role === 'creator';
@@ -47,6 +52,7 @@ export default function ProfileScreen() {
   const [editedGoal, setEditedGoal] = useState<RelationshipGoal | undefined>(profile?.relationshipGoal);
   const [editedAgeMin, setEditedAgeMin] = useState<string>(profile?.ageRangeMin?.toString() || '');
   const [editedAgeMax, setEditedAgeMax] = useState<string>(profile?.ageRangeMax?.toString() || '');
+  const [editedPhotoUrl, setEditedPhotoUrl] = useState<string | undefined>(profile?.photoUrl);
 
   const relationshipGoals: { value: RelationshipGoal; label: string; emoji: string }[] = [
     { value: 'casual', label: 'Casual Dating', emoji: '😊' },
@@ -95,11 +101,86 @@ export default function ProfileScreen() {
     setEditedGoal(profile?.relationshipGoal);
     setEditedAgeMin(profile?.ageRangeMin?.toString() || '');
     setEditedAgeMax(profile?.ageRangeMax?.toString() || '');
+    setEditedPhotoUrl(profile?.photoUrl);
     setIsEditing(true);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
+  };
+
+  const uploadImageToSupabase = async (uri: string): Promise<string | null> => {
+    if (!isSupabaseConfigured || !supabase || !user) {
+      Alert.alert('Error', 'Image upload not available');
+      return null;
+    }
+
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `profile-photos/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, blob, {
+          contentType: `image/${fileExt}`,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Image upload error:', error);
+      return null;
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to upload a profile photo.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setIsUploadingImage(true);
+        const imageUri = result.assets[0].uri;
+        
+        const uploadedUrl = await uploadImageToSupabase(imageUri);
+        
+        if (uploadedUrl) {
+          setEditedPhotoUrl(uploadedUrl);
+          Alert.alert('Success', 'Photo uploaded successfully');
+        } else {
+          Alert.alert('Error', 'Failed to upload image. Please try again.');
+        }
+        
+        setIsUploadingImage(false);
+      }
+    } catch (error: any) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to select image');
+      setIsUploadingImage(false);
+    }
   };
 
   const handleSave = async () => {
@@ -116,6 +197,7 @@ export default function ProfileScreen() {
         relationshipGoal: editedGoal,
         ageRangeMin: !isCreator && editedAgeMin ? parseInt(editedAgeMin) : undefined,
         ageRangeMax: !isCreator && editedAgeMax ? parseInt(editedAgeMax) : undefined,
+        photoUrl: editedPhotoUrl,
       });
 
       if (user && result.profile) {
@@ -179,10 +261,12 @@ export default function ProfileScreen() {
         >
           <View style={styles.profileHeader}>
             <View style={styles.avatarContainer}>
-              {profile.photoUrl ? (
-                <View style={styles.avatar}>
-                  <UserCircle size={80} color={Colors.coral} />
-                </View>
+              {(editedPhotoUrl || profile.photoUrl) ? (
+                <Image 
+                  source={{ uri: editedPhotoUrl || profile.photoUrl }} 
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                />
               ) : (
                 <LinearGradient
                   colors={[Colors.coral, Colors.peach]}
@@ -195,14 +279,23 @@ export default function ProfileScreen() {
               )}
               
               {isEditing && (
-                <TouchableOpacity style={styles.cameraButton} activeOpacity={0.7}>
+                <TouchableOpacity 
+                  style={styles.cameraButton} 
+                  activeOpacity={0.7}
+                  onPress={handlePickImage}
+                  disabled={isUploadingImage}
+                >
                   <LinearGradient
                     colors={[Colors.coral, Colors.peach]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.cameraGradient}
                   >
-                    <Camera size={18} color={Colors.text.white} />
+                    {isUploadingImage ? (
+                      <ActivityIndicator size="small" color={Colors.text.white} />
+                    ) : (
+                      <Camera size={18} color={Colors.text.white} />
+                    )}
                   </LinearGradient>
                 </TouchableOpacity>
               )}
@@ -551,6 +644,17 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: Colors.coral,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.background.card,
     shadowColor: Colors.coral,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
