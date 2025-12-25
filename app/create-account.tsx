@@ -97,8 +97,13 @@ export default function CreateAccountScreen() {
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
-    }
-    if (selectedDate) {
+      if (selectedDate) {
+        setDateOfBirth(selectedDate);
+        if (errors.dateOfBirth) {
+          setErrors({ ...errors, dateOfBirth: '' });
+        }
+      }
+    } else if (Platform.OS === 'ios' && selectedDate) {
       setDateOfBirth(selectedDate);
       if (errors.dateOfBirth) {
         setErrors({ ...errors, dateOfBirth: '' });
@@ -239,9 +244,9 @@ export default function CreateAccountScreen() {
               <Text style={styles.ageNote}>You must be 18+ to use this app</Text>
             </View>
 
-            {Platform.OS === 'ios' ? (
+            {Platform.OS === 'ios' && showDatePicker && (
               <Modal
-                visible={showDatePicker}
+                visible={true}
                 transparent
                 animationType="slide"
                 onRequestClose={() => setShowDatePicker(false)}
@@ -254,7 +259,10 @@ export default function CreateAccountScreen() {
                   />
                   <View style={styles.modalContent}>
                     <View style={styles.modalHeader}>
-                      <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                      <TouchableOpacity 
+                        onPress={() => setShowDatePicker(false)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
                         <Text style={styles.modalButton}>Done</Text>
                       </TouchableOpacity>
                     </View>
@@ -265,22 +273,21 @@ export default function CreateAccountScreen() {
                       onChange={handleDateChange}
                       maximumDate={new Date()}
                       minimumDate={new Date(1920, 0, 1)}
-                      style={styles.datePicker}
+                      textColor={Colors.text.primary}
                     />
                   </View>
                 </View>
               </Modal>
-            ) : (
-              showDatePicker && (
-                <DateTimePicker
-                  value={dateOfBirth || new Date(2000, 0, 1)}
-                  mode="date"
-                  display="default"
-                  onChange={handleDateChange}
-                  maximumDate={new Date()}
-                  minimumDate={new Date(1920, 0, 1)}
-                />
-              )
+            )}
+            {Platform.OS === 'android' && showDatePicker && (
+              <DateTimePicker
+                value={dateOfBirth || new Date(2000, 0, 1)}
+                mode="date"
+                display="default"
+                onChange={handleDateChange}
+                maximumDate={new Date()}
+                minimumDate={new Date(1920, 0, 1)}
+              />
             )}
 
             <View style={styles.inputContainer}>
@@ -525,5 +532,6 @@ const styles = StyleSheet.create({
   },
   datePicker: {
     height: 216,
+    width: '100%',
   },
 });
