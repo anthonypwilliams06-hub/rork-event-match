@@ -255,9 +255,16 @@ function initSupabase(): SupabaseClient | null {
   }
 }
 
-export const supabase = initSupabase() as SupabaseClient;
+export const supabase = initSupabase();
 
 export { isSupabaseConfigured };
+
+export function getSupabase(): SupabaseClient {
+  if (!supabase) {
+    throw new Error('Supabase is not configured. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_KEY environment variables.');
+  }
+  return supabase;
+}
 
 export class SupabaseError extends Error {
   code: string;

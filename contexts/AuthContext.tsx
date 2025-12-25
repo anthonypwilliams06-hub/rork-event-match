@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect } from 'react';
 import { User } from '@/types';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured, getSupabase } from '@/lib/supabase';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { signupViaHTTP } from '@/lib/authSignup';
 import { logError, setUser as setSentryUser, clearUser as clearSentryUser } from '@/lib/sentry';
@@ -33,7 +33,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
         if (!isMounted) return;
 
-        const { data } = supabase.auth.onAuthStateChange(
+        const { data } = getSupabase().auth.onAuthStateChange(
           async (_event, session) => {
             if (!isMounted) return;
             
@@ -42,7 +42,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             
             if (session?.user) {
               try {
-                const { data: profileData } = await supabase
+                const { data: profileData } = await getSupabase()
                   .from('profiles')
                   .select('*')
                   .eq('user_id', session.user.id)

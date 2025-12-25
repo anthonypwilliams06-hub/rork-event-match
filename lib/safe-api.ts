@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured, SupabaseError } from './supabase';
+import { supabase, isSupabaseConfigured, SupabaseError, getSupabase } from './supabase';
 import { PostgrestError } from '@supabase/supabase-js';
 
 export type ErrorCode = 
@@ -251,32 +251,32 @@ export const safeApi = {
   profiles: {
     get: async (userId: string) =>
       safeCallRequired(
-        async () => supabase.from('profiles').select('*').eq('user_id', userId).single(),
+        async () => getSupabase().from('profiles').select('*').eq('user_id', userId).single(),
         { customErrorMessage: 'Could not load profile' }
       ),
 
     getOptional: async (userId: string) =>
       safeCall(
-        async () => supabase.from('profiles').select('*').eq('user_id', userId).single(),
+        async () => getSupabase().from('profiles').select('*').eq('user_id', userId).single(),
         { customErrorMessage: 'Could not load profile', silent: true }
       ),
 
     create: async (profile: Record<string, unknown>) =>
       safeCallRequired(
-        async () => supabase.from('profiles').insert(profile).select().single(),
+        async () => getSupabase().from('profiles').insert(profile).select().single(),
         { customErrorMessage: 'Could not create profile' }
       ),
 
     update: async (userId: string, updates: Record<string, unknown>) =>
       safeCallRequired(
-        async () => supabase.from('profiles').update(updates).eq('user_id', userId).select().single(),
+        async () => getSupabase().from('profiles').update(updates).eq('user_id', userId).select().single(),
         { customErrorMessage: 'Could not update profile' }
       ),
   },
 
   events: {
     list: async (filters?: { status?: string; category?: string; limit?: number }) => {
-      let query = supabase
+      let query = getSupabase()
         .from('events')
         .select('*, profiles!events_creator_id_fkey(*)')
         .eq('is_draft', false)
@@ -291,25 +291,25 @@ export const safeApi = {
 
     get: async (id: string) =>
       safeCallRequired(
-        async () => supabase.from('events').select('*, profiles!events_creator_id_fkey(*)').eq('id', id).single(),
+        async () => getSupabase().from('events').select('*, profiles!events_creator_id_fkey(*)').eq('id', id).single(),
         { customErrorMessage: 'Could not load event details' }
       ),
 
     create: async (event: Record<string, unknown>) =>
       safeCallRequired(
-        async () => supabase.from('events').insert(event).select().single(),
+        async () => getSupabase().from('events').insert(event).select().single(),
         { customErrorMessage: 'Could not create event' }
       ),
 
     update: async (id: string, updates: Record<string, unknown>) =>
       safeCallRequired(
-        async () => supabase.from('events').update(updates).eq('id', id).select().single(),
+        async () => getSupabase().from('events').update(updates).eq('id', id).select().single(),
         { customErrorMessage: 'Could not update event' }
       ),
 
     delete: async (id: string) =>
       safeCall(
-        async () => supabase.from('events').delete().eq('id', id).select(),
+        async () => getSupabase().from('events').delete().eq('id', id).select(),
         { customErrorMessage: 'Could not delete event' }
       ),
   },
@@ -317,25 +317,25 @@ export const safeApi = {
   messages: {
     list: async (userId: string) =>
       safeCall(
-        async () => supabase.from('messages').select('*').or(`sender_id.eq.${userId},receiver_id.eq.${userId}`).order('created_at', { ascending: false }),
+        async () => getSupabase().from('messages').select('*').or(`sender_id.eq.${userId},receiver_id.eq.${userId}`).order('created_at', { ascending: false }),
         { customErrorMessage: 'Could not load messages' }
       ),
 
     send: async (message: { sender_id: string; receiver_id: string; content: string }) =>
       safeCallRequired(
-        async () => supabase.from('messages').insert(message).select().single(),
+        async () => getSupabase().from('messages').insert(message).select().single(),
         { customErrorMessage: 'Could not send message', retries: 1 }
       ),
 
     getConversation: async (userId1: string, userId2: string) =>
       safeCall(
-        async () => supabase.from('messages').select('*').or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`).order('created_at', { ascending: true }),
+        async () => getSupabase().from('messages').select('*').or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`).order('created_at', { ascending: true }),
         { customErrorMessage: 'Could not load conversation' }
       ),
 
     markAsRead: async (messageId: string) =>
       safeCall(
-        async () => supabase.from('messages').update({ read: true }).eq('id', messageId).select(),
+        async () => getSupabase().from('messages').update({ read: true }).eq('id', messageId).select(),
         { customErrorMessage: 'Could not mark message as read', silent: true }
       ),
   },
@@ -343,25 +343,25 @@ export const safeApi = {
   favorites: {
     add: async (userId: string, eventId: string) =>
       safeCallRequired(
-        async () => supabase.from('favorites').insert({ user_id: userId, event_id: eventId }).select().single(),
+        async () => getSupabase().from('favorites').insert({ user_id: userId, event_id: eventId }).select().single(),
         { customErrorMessage: 'Could not add to favorites' }
       ),
 
     remove: async (userId: string, eventId: string) =>
       safeCall(
-        async () => supabase.from('favorites').delete().eq('user_id', userId).eq('event_id', eventId).select(),
+        async () => getSupabase().from('favorites').delete().eq('user_id', userId).eq('event_id', eventId).select(),
         { customErrorMessage: 'Could not remove from favorites' }
       ),
 
     list: async (userId: string) =>
       safeCall(
-        async () => supabase.from('favorites').select('*, events(*)').eq('user_id', userId),
+        async () => getSupabase().from('favorites').select('*, events(*)').eq('user_id', userId),
         { customErrorMessage: 'Could not load favorites' }
       ),
 
     check: async (userId: string, eventId: string) =>
       safeCall(
-        async () => supabase.from('favorites').select('id').eq('user_id', userId).eq('event_id', eventId).maybeSingle(),
+        async () => getSupabase().from('favorites').select('id').eq('user_id', userId).eq('event_id', eventId).maybeSingle(),
         { silent: true }
       ),
   },
@@ -369,13 +369,13 @@ export const safeApi = {
   ratings: {
     create: async (rating: { user_id: string; event_id: string; score: number; comment?: string }) =>
       safeCallRequired(
-        async () => supabase.from('ratings').insert(rating).select().single(),
+        async () => getSupabase().from('ratings').insert(rating).select().single(),
         { customErrorMessage: 'Could not submit rating' }
       ),
 
     getForEvent: async (eventId: string) =>
       safeCall(
-        async () => supabase.from('ratings').select('*, profiles(name, avatar_url)').eq('event_id', eventId).order('created_at', { ascending: false }),
+        async () => getSupabase().from('ratings').select('*, profiles(name, avatar_url)').eq('event_id', eventId).order('created_at', { ascending: false }),
         { customErrorMessage: 'Could not load ratings' }
       ),
   },
@@ -383,19 +383,19 @@ export const safeApi = {
   notifications: {
     list: async (userId: string) =>
       safeCall(
-        async () => supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+        async () => getSupabase().from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
         { customErrorMessage: 'Could not load notifications' }
       ),
 
     markAsRead: async (notificationId: string) =>
       safeCall(
-        async () => supabase.from('notifications').update({ read: true }).eq('id', notificationId).select(),
+        async () => getSupabase().from('notifications').update({ read: true }).eq('id', notificationId).select(),
         { silent: true }
       ),
 
     markAllAsRead: async (userId: string) =>
       safeCall(
-        async () => supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false).select(),
+        async () => getSupabase().from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false).select(),
         { customErrorMessage: 'Could not mark notifications as read' }
       ),
   },

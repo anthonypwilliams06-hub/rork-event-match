@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '@/backend/db';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 export const registerTokenProcedure = publicProcedure
   .input(z.object({
@@ -9,7 +9,7 @@ export const registerTokenProcedure = publicProcedure
     pushToken: z.string(),
   }))
   .mutation(async ({ input }) => {
-    const { data: { user }, error } = await supabase.auth.getUser(input.sessionToken);
+    const { data: { user }, error } = await getSupabase().auth.getUser(input.sessionToken);
     if (error || !user) {
       throw new Error('Invalid session');
     }

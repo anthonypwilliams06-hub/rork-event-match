@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 export async function invokeEdgeFunction<TResponse = any>(
   functionName: string,
@@ -6,7 +6,7 @@ export async function invokeEdgeFunction<TResponse = any>(
 ): Promise<TResponse> {
   console.log(`[Edge Function] Calling ${functionName} with:`, payload);
 
-  const { data, error } = await supabase.functions.invoke(functionName, {
+  const { data, error } = await getSupabase().functions.invoke(functionName, {
     body: payload || {},
   });
 

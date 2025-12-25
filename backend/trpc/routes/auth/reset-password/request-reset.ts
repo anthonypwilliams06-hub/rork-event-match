@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../../create-context';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 const resetRequestSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -11,7 +11,7 @@ export const requestResetProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Password reset request:', input.email);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(input.email);
+    const { error } = await getSupabase().auth.resetPasswordForEmail(input.email);
 
     if (error) {
       console.warn('Error requesting password reset:', error.message);

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../../create-context';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 const confirmResetSchema = z.object({
   token: z.string(),
@@ -12,7 +12,7 @@ export const confirmResetProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Password reset confirmation');
 
-    const { error } = await supabase.auth.updateUser({
+    const { error } = await getSupabase().auth.updateUser({
       password: input.newPassword,
     });
 

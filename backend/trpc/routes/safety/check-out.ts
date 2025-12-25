@@ -1,7 +1,7 @@
 import { publicProcedure } from "../../create-context";
 import { z } from "zod";
 import { db } from "@/backend/db";
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 const checkOutSchema = z.object({
   token: z.string(),
@@ -11,7 +11,7 @@ const checkOutSchema = z.object({
 export const checkOutProcedure = publicProcedure
   .input(checkOutSchema)
   .mutation(async ({ input }) => {
-    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    const { data: { user }, error } = await getSupabase().auth.getUser(input.token);
     if (error || !user) {
       throw new Error('Invalid session');
     }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 export const listVerificationsProcedure = publicProcedure
   .input(
@@ -12,7 +12,7 @@ export const listVerificationsProcedure = publicProcedure
   .query(async ({ input }) => {
     console.log('List verification requests');
 
-    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    const { data: { user }, error } = await getSupabase().auth.getUser(input.token);
     if (error || !user) {
       throw new Error('Invalid session');
     }

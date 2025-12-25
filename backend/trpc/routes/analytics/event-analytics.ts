@@ -1,7 +1,7 @@
 import { publicProcedure } from "../../create-context";
 import { z } from "zod";
 import { db } from "@/backend/db";
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 const getAnalyticsSchema = z.object({
   token: z.string(),
@@ -11,7 +11,7 @@ const getAnalyticsSchema = z.object({
 export const getEventAnalyticsProcedure = publicProcedure
   .input(getAnalyticsSchema)
   .query(async ({ input }) => {
-    const { data: { user: authUser }, error } = await supabase.auth.getUser(input.token);
+    const { data: { user: authUser }, error } = await getSupabase().auth.getUser(input.token);
     if (error || !authUser) {
       throw new Error('Invalid session');
     }

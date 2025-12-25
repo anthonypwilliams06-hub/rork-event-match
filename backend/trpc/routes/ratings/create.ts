@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { publicProcedure } from '../../create-context';
 import { db } from '../../../db';
 import { randomBytes } from 'crypto';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 export const createRatingProcedure = publicProcedure
   .input(
@@ -16,7 +16,7 @@ export const createRatingProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('Create rating');
 
-    const { data: { user }, error } = await supabase.auth.getUser(input.token);
+    const { data: { user }, error } = await getSupabase().auth.getUser(input.token);
     if (error || !user) {
       throw new Error('Invalid session');
     }

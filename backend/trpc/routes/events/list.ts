@@ -2,7 +2,7 @@ import { publicProcedure } from "../../create-context";
 import { z } from "zod";
 import { db } from "@/backend/db";
 import { EventWithMatch, MatchScore, UserProfile, Event as AppEvent } from "@/types";
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 const listEventsSchema = z.object({
   creatorId: z.string().optional(),
@@ -76,7 +76,7 @@ export const listEventsProcedure = publicProcedure
       : await db.getAllEvents();
 
     if (input?.token) {
-      const { data: { user: authUser } } = await supabase.auth.getUser(input.token);
+      const { data: { user: authUser } } = await getSupabase().auth.getUser(input.token);
       if (authUser) {
         const blockedUsers = await db.getBlockedUserIds(authUser.id);
         events = events.filter(e => !blockedUsers.includes(e.creatorId));
@@ -123,7 +123,7 @@ export const listEventsProcedure = publicProcedure
       return events.slice(offset, offset + limit);
     }
 
-    const { data: { user: authUser } } = await supabase.auth.getUser(input.token);
+    const { data: { user: authUser } } = await getSupabase().auth.getUser(input.token);
     if (!authUser) {
       events.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       console.log('Events retrieved (invalid session):', events.length);
