@@ -46,8 +46,10 @@ export const trpcClient = trpc.createClient({
           headers,
         };
         
+        const baseUrl = getBaseUrl();
         console.log('[tRPC] Request:', url);
-        console.log('[tRPC] Base URL:', getBaseUrl());
+        console.log('[tRPC] Base URL:', baseUrl);
+        console.log('[tRPC] Full URL being called:', url);
         
         try {
           const response = await fetch(url, modifiedOptions);
@@ -62,7 +64,19 @@ export const trpcClient = trpc.createClient({
           console.log('[tRPC] Raw response (first 500 chars):', text.substring(0, 500));
           
           if (!response.ok) {
-            console.error('[tRPC] Response not OK:', response.status, response.statusText);
+            console.error('[tRPC] ❌ Response not OK:', response.status, response.statusText);
+            console.error('[tRPC] ❌ URL that returned 404:', url);
+            console.error('[tRPC] ❌ Expected base:', baseUrl);
+            console.error('[tRPC] ❌ Response body:', text);
+            
+            if (response.status === 404) {
+              throw new Error(
+                `tRPC endpoint not found (404). ` +
+                `Check if Supabase Edge Function is deployed at: ${baseUrl}\n` +
+                `Full URL: ${url}\n` +
+                `Response: ${text.substring(0, 200)}`
+              );
+            }
           }
           
           const contentType = response.headers.get('content-type');
