@@ -24,22 +24,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="events" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="event-detail"
-        options={{
-          title: "Event Details",
-          headerStyle: { backgroundColor: "#FF6B6B" },
-          headerTintColor: "#fff",
-        }}
-      />
-      <Stack.Screen
-        name="profile-detail"
-        options={{
-          title: "Profile",
-          headerStyle: { backgroundColor: "#FF6B6B" },
-          headerTintColor: "#fff",
-        }}
-      />
+      <Stack.Screen name="event-details/[id]" options={{ headerShown: false }} />
       <Stack.Screen
         name="create-event"
         options={{
