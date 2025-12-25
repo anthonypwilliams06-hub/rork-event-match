@@ -50,5 +50,10 @@ export const updateProfileProcedure = publicProcedure
 
     console.log('Profile updated successfully');
 
-    return { profile: updatedProfile };
+    return { 
+      profile: {
+        ...updatedProfile,
+        premiumExpiresAt: updatedProfile.premiumExpiresAt?.toISOString(),
+      },
+    };
   });

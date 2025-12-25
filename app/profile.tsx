@@ -201,7 +201,15 @@ export default function ProfileScreen() {
       });
 
       if (user && result.profile) {
-        updateUser({ ...user, profile: result.profile });
+        updateUser({ 
+          ...user, 
+          profile: {
+            ...result.profile,
+            premiumExpiresAt: result.profile.premiumExpiresAt 
+              ? new Date(result.profile.premiumExpiresAt as unknown as string)
+              : undefined,
+          },
+        });
       }
 
       setIsEditing(false);

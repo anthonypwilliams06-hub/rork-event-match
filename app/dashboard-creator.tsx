@@ -108,6 +108,7 @@ export default function CreatorDashboardScreen() {
         role: 'seeker',
       });
       
+      console.log('Profile updated, switching to seeker dashboard');
       router.replace('/dashboard-seeker' as any);
     } catch (error) {
       console.error('Error switching role:', error);
