@@ -26,7 +26,7 @@ import {
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { trpc } from '@/lib/trpc';
-import { EventWithMatch, FavoriteEvent } from '@/types';
+import { EventWithMatch } from '@/types';
 
 type TabType = 'matches' | 'saved';
 
@@ -43,12 +43,18 @@ export default function SeekerDashboardScreen() {
 
   const favoritesQuery = trpc.favorites.list.useQuery(
     { token: token || '' },
-    { enabled: !!token }
+    { 
+      enabled: !!token,
+      select: (data) => data?.favorites || [],
+    }
   );
 
   const conversationsQuery = trpc.messages.conversations.useQuery(
     { token: token || '' },
-    { enabled: !!token }
+    { 
+      enabled: !!token,
+      select: (data) => data?.conversations || [],
+    }
   );
 
   const addFavoriteMutation = trpc.favorites.add.useMutation();
@@ -56,15 +62,14 @@ export default function SeekerDashboardScreen() {
   const updateProfileMutation = trpc.profile.update.useMutation();
 
   const events = (eventsQuery.data || []) as EventWithMatch[];
-  const favorites = (favoritesQuery.data || []) as FavoriteEvent[];
-  const conversationsData = conversationsQuery.data as { conversations: any[] } | undefined;
-  const conversations = conversationsData?.conversations || [];
+  const favorites = favoritesQuery.data || [];
+  const conversations = conversationsQuery.data || [];
 
   const upcomingEvents = events.filter(
     (e) => e.event.status === 'upcoming' || e.event.status === 'ongoing'
   );
 
-  const favoriteEventIds = new Set(favorites.map((f) => f.eventId));
+  const favoriteEventIds = new Set(favorites.map((f: any) => f.eventId));
   const savedEvents = events.filter((e) => favoriteEventIds.has(e.event.id));
 
   const displayedEvents = activeTab === 'matches' ? upcomingEvents : savedEvents;

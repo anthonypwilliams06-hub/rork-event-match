@@ -20,7 +20,11 @@ export default function MessagesScreen() {
 
   const conversationsQuery = trpc.messages.conversations.useQuery(
     { token: token || '' },
-    { enabled: isAuthenticated && !!token, refetchInterval: 5000 }
+    { 
+      enabled: isAuthenticated && !!token, 
+      refetchInterval: 5000,
+      select: (data) => data?.conversations || [],
+    }
   );
 
   const getUnreadCount = useCallback((conv: Conversation & { otherUser?: any }) => {
@@ -147,15 +151,13 @@ export default function MessagesScreen() {
     );
   }
 
-  const conversations = conversationsQuery.data?.conversations || [];
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>
       </View>
 
-      {conversations.length === 0 ? (
+      {(conversationsQuery.data || []).length === 0 ? (
         <View style={styles.emptyContainer}>
           <MessageCircle size={64} color="#ccc" />
           <Text style={styles.emptyText}>No conversations yet</Text>
@@ -165,7 +167,7 @@ export default function MessagesScreen() {
         </View>
       ) : (
         <FlatList
-          data={conversations}
+          data={conversationsQuery.data || []}
           renderItem={renderConversation}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}

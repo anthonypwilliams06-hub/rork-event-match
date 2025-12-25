@@ -56,6 +56,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       enabled: !authLoading && isAuthenticated && !!token, 
       refetchInterval: 30000,
       retry: 1,
+      select: (data) => data || [],
     }
   );
 

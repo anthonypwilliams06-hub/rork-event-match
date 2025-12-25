@@ -468,7 +468,10 @@ const appRouter = router({
       }),
     list: publicProcedure
       .input(z.object({ token: z.string() }))
-      .query(() => []),
+      .query(async ({ input }: any) => {
+        console.log('[Favorites] Listing favorites');
+        return { favorites: [] };
+      }),
   }),
   messages: router({
     send: publicProcedure
@@ -483,10 +486,16 @@ const appRouter = router({
       }),
     list: publicProcedure
       .input(z.object({ token: z.string(), otherUserId: z.string() }))
-      .query(() => []),
+      .query(async ({ input }: any) => {
+        console.log('[Messages] Listing messages');
+        return { messages: [] };
+      }),
     conversations: publicProcedure
       .input(z.object({ token: z.string() }))
-      .query(() => []),
+      .query(async ({ input }: any) => {
+        console.log('[Messages] Listing conversations');
+        return { conversations: [] };
+      }),
     markRead: publicProcedure
       .input(z.object({ messageId: z.string() }))
       .mutation(async ({ input }: any) => {
@@ -513,7 +522,10 @@ const appRouter = router({
       }),
     list: publicProcedure
       .input(z.object({ token: z.string(), userId: z.string() }))
-      .query(() => []),
+      .query(async ({ input }: any) => {
+        console.log('[Ratings] Listing ratings');
+        return { ratings: [] };
+      }),
   }),
   blocking: router({
     block: publicProcedure
@@ -542,7 +554,10 @@ const appRouter = router({
   notifications: router({
     list: publicProcedure
       .input(z.object({ token: z.string() }))
-      .query(() => []),
+      .query(async ({ input }: any) => {
+        console.log('[Notifications] Listing notifications');
+        return [];
+      }),
     markRead: publicProcedure
       .input(z.object({ notificationId: z.string() }))
       .mutation(async ({ input }: any) => {
@@ -617,7 +632,10 @@ const appRouter = router({
       }),
     list: publicProcedure
       .input(z.object({ token: z.string(), eventId: z.string() }))
-      .query(() => []),
+      .query(async ({ input }: any) => {
+        console.log('[Attendees] Listing attendees');
+        return { attendees: [] };
+      }),
   }),
   analytics: router({
     eventAnalytics: publicProcedure
