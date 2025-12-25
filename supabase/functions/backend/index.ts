@@ -433,18 +433,25 @@ const appRouter = router({
       }))
       .query(async ({ input }: any) => {
         console.log('[Events] Listing events with sortBy:', input.sortBy);
-        const { data, error } = await supabaseAdmin
-          .from('events')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(input?.limit || 50);
+        
+        try {
+          const { data, error } = await supabaseAdmin
+            .from('events')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(input?.limit || 50);
 
-        if (error) {
-          console.error('[Events] List error:', error);
+          if (error) {
+            console.error('[Events] List error:', error);
+            return [];
+          }
+
+          console.log('[Events] Found', data?.length || 0, 'events');
+          return data || [];
+        } catch (err) {
+          console.error('[Events] Exception:', err);
           return [];
         }
-
-        return data || [];
       }),
     get: publicProcedure
       .input(z.object({ id: z.string() }))
@@ -470,7 +477,7 @@ const appRouter = router({
       .input(z.object({ token: z.string() }))
       .query(async ({ input }: any) => {
         console.log('[Favorites] Listing favorites');
-        return { favorites: [] };
+        return [];
       }),
   }),
   messages: router({
@@ -488,13 +495,13 @@ const appRouter = router({
       .input(z.object({ token: z.string(), otherUserId: z.string() }))
       .query(async ({ input }: any) => {
         console.log('[Messages] Listing messages');
-        return { messages: [] };
+        return [];
       }),
     conversations: publicProcedure
       .input(z.object({ token: z.string() }))
       .query(async ({ input }: any) => {
         console.log('[Messages] Listing conversations');
-        return { conversations: [] };
+        return [];
       }),
     markRead: publicProcedure
       .input(z.object({ messageId: z.string() }))
