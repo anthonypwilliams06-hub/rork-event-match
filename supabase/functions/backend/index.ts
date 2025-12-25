@@ -425,12 +425,14 @@ const appRouter = router({
       }),
     list: publicProcedure
       .input(z.object({
+        token: z.string(),
+        sortBy: z.string().optional(),
         filters: z.any().optional(),
         limit: z.number().optional(),
         offset: z.number().optional(),
-      }).optional())
+      }))
       .query(async ({ input }: any) => {
-        console.log('[Events] Listing events');
+        console.log('[Events] Listing events with sortBy:', input.sortBy);
         const { data, error } = await supabaseAdmin
           .from('events')
           .select('*')
@@ -439,10 +441,10 @@ const appRouter = router({
 
         if (error) {
           console.error('[Events] List error:', error);
-          return { events: [] };
+          return [];
         }
 
-        return { events: data || [] };
+        return data || [];
       }),
     get: publicProcedure
       .input(z.object({ id: z.string() }))
@@ -464,7 +466,9 @@ const appRouter = router({
         console.log('[Favorites] Removing favorite');
         return { success: true };
       }),
-    list: publicProcedure.query(() => ({ favorites: [] })),
+    list: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .query(() => []),
   }),
   messages: router({
     send: publicProcedure
@@ -477,8 +481,12 @@ const appRouter = router({
         console.log('[Messages] Sending message');
         return { success: true };
       }),
-    list: publicProcedure.query(() => ({ messages: [] })),
-    conversations: publicProcedure.query(() => ({ conversations: [] })),
+    list: publicProcedure
+      .input(z.object({ token: z.string(), otherUserId: z.string() }))
+      .query(() => []),
+    conversations: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .query(() => []),
     markRead: publicProcedure
       .input(z.object({ messageId: z.string() }))
       .mutation(async ({ input }: any) => {
@@ -503,7 +511,9 @@ const appRouter = router({
         console.log('[Ratings] Getting stats');
         return { stats: { average: 0, count: 0 } };
       }),
-    list: publicProcedure.query(() => ({ ratings: [] })),
+    list: publicProcedure
+      .input(z.object({ token: z.string(), userId: z.string() }))
+      .query(() => []),
   }),
   blocking: router({
     block: publicProcedure
@@ -605,7 +615,9 @@ const appRouter = router({
         console.log('[Attendees] Joining event');
         return { success: true };
       }),
-    list: publicProcedure.query(() => ({ attendees: [] })),
+    list: publicProcedure
+      .input(z.object({ token: z.string(), eventId: z.string() }))
+      .query(() => []),
   }),
   analytics: router({
     eventAnalytics: publicProcedure
