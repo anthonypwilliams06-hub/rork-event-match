@@ -298,16 +298,29 @@ export default function CreateEventScreen() {
           </Text>
         </TouchableOpacity>
         {showDatePicker && (
-          <DateTimePicker
-            value={selectedDate}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, date) => {
-              setShowDatePicker(Platform.OS === 'ios');
-              if (date) setSelectedDate(date);
-            }}
-            minimumDate={new Date()}
-          />
+          <View>
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(event, date) => {
+                if (Platform.OS === 'android') {
+                  setShowDatePicker(false);
+                }
+                if (date) setSelectedDate(date);
+              }}
+              minimumDate={new Date()}
+            />
+            {Platform.OS === 'ios' && (
+              <TouchableOpacity
+                style={styles.doneButton}
+                onPress={() => setShowDatePicker(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.doneButtonText}>Done</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
       </View>
 
@@ -324,15 +337,28 @@ export default function CreateEventScreen() {
           </Text>
         </TouchableOpacity>
         {showTimePicker && (
-          <DateTimePicker
-            value={selectedTime}
-            mode="time"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, time) => {
-              setShowTimePicker(Platform.OS === 'ios');
-              if (time) setSelectedTime(time);
-            }}
-          />
+          <View>
+            <DateTimePicker
+              value={selectedTime}
+              mode="time"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(event, time) => {
+                if (Platform.OS === 'android') {
+                  setShowTimePicker(false);
+                }
+                if (time) setSelectedTime(time);
+              }}
+            />
+            {Platform.OS === 'ios' && (
+              <TouchableOpacity
+                style={styles.doneButton}
+                onPress={() => setShowTimePicker(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.doneButtonText}>Done</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
       </View>
 
@@ -713,6 +739,19 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 17,
+    fontWeight: '600' as const,
+    color: Colors.text.white,
+  },
+  doneButton: {
+    backgroundColor: Colors.coral,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  doneButtonText: {
+    fontSize: 16,
     fontWeight: '600' as const,
     color: Colors.text.white,
   },
