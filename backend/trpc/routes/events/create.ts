@@ -11,7 +11,7 @@ const createEventSchema = z.object({
   location: z.string().min(1),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
-  imageUrl: z.string().url(),
+  imageUrl: z.string().min(1),
   capacity: z.number().min(1).optional(),
   vibes: z.array(z.enum(['chill', 'adventurous', 'romantic', 'social', 'intimate', 'energetic', 'cultural', 'fun'] as const)).default([]),
   isDraft: z.boolean().default(false),
