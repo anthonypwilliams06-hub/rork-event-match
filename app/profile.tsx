@@ -116,31 +116,54 @@ export default function ProfileScreen() {
     }
 
     try {
+      console.log('[Upload] Starting image upload from:', uri);
+      
       const response = await fetch(uri);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
+      
       const blob = await response.blob();
+      console.log('[Upload] Image fetched, size:', blob.size, 'type:', blob.type);
+      
       const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
       const filePath = `profile-photos/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      console.log('[Upload] Uploading to:', filePath);
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, blob, {
-          contentType: `image/${fileExt}`,
+          contentType: blob.type || `image/${fileExt}`,
           upsert: true,
         });
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw uploadError;
+        console.error('[Upload] Storage error:', uploadError);
+        throw new Error(uploadError.message || 'Failed to upload to storage');
       }
 
+      console.log('[Upload] Upload successful:', uploadData);
       const { data: urlData } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
 
+      console.log('[Upload] Public URL:', urlData.publicUrl);
       return urlData.publicUrl;
-    } catch (error) {
-      console.error('Image upload error:', error);
+    } catch (error: any) {
+      console.error('[Upload] Image upload error:', error);
+      const errorMessage = error?.message || 'Unknown error';
+      
+      if (errorMessage.includes('NetworkError') || errorMessage.includes('Network request failed')) {
+        Alert.alert('Network Error', 'Please check your internet connection and try again.');
+      } else if (errorMessage.includes('bucket')) {
+        Alert.alert('Configuration Error', 'Storage is not properly configured. Please contact support.');
+      } else if (errorMessage.includes('JWT') || errorMessage.includes('auth')) {
+        Alert.alert('Session Expired', 'Please log out and log back in.');
+      } else {
+        Alert.alert('Upload Failed', errorMessage);
+      }
+      
       return null;
     }
   };
@@ -170,8 +193,6 @@ export default function ProfileScreen() {
         if (uploadedUrl) {
           setEditedPhotoUrl(uploadedUrl);
           Alert.alert('Success', 'Photo uploaded successfully');
-        } else {
-          Alert.alert('Error', 'Failed to upload image. Please try again.');
         }
         
         setIsUploadingImage(false);
