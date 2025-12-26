@@ -17,6 +17,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { trpc } from '@/lib/trpc';
 import { Message } from '@/types';
+import { convertApiMessages } from '@/lib/type-utils';
 import { trackMessageSent, trackMessageFailed } from '@/lib/analytics';
 import { ArrowLeft, Send, Trash2, User, MoreVertical, ShieldAlert, Ban, VolumeX, Flag } from 'lucide-react-native';
 
@@ -90,9 +91,14 @@ export default function ChatScreen() {
 
   const markReadMutation = trpc.messages.markRead.useMutation();
 
+  // Convert API messages to proper Message types
+  const messages = messagesQuery.data?.messages 
+    ? convertApiMessages(messagesQuery.data.messages)
+    : [];
+
   useEffect(() => {
-    if (messagesQuery.data?.messages && Array.isArray(messagesQuery.data.messages)) {
-      const unreadMessages = messagesQuery.data.messages.filter(
+    if (messages && Array.isArray(messages)) {
+      const unreadMessages = messages.filter(
         (msg: Message) => !msg.read && msg.receiverId === user?.id
       );
 
@@ -103,7 +109,7 @@ export default function ChatScreen() {
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messagesQuery.data, user?.id, token]);
+  }, [messages.length, user?.id, token]);
 
   const handleSendMessage = useCallback(() => {
     if (!messageText.trim() || !token || !userId) return;
@@ -310,6 +316,9 @@ export default function ChatScreen() {
   }
 
   if (!eligibilityQuery.data?.canChat) {
+    const eligibilityData = eligibilityQuery.data as any;
+    const reason = eligibilityData?.reason || eligibilityData?.message || 'You can only chat with users you share a "Going" RSVP with';
+    
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -323,14 +332,12 @@ export default function ChatScreen() {
           <ShieldAlert size={48} color="#FF6B6B" />
           <Text style={styles.emptyText}>Unable to Chat</Text>
           <Text style={styles.emptySubtext}>
-            {eligibilityQuery.data?.message || 'You can only chat with users you share a "Going" RSVP with'}
+            {reason}
           </Text>
         </View>
       </SafeAreaView>
     );
   }
-
-  const messages = Array.isArray(messagesQuery.data?.messages) ? messagesQuery.data.messages : [];
 
   return (
     <SafeAreaView style={styles.container}>
