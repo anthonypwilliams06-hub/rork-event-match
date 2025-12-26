@@ -5,7 +5,6 @@ import { Hono } from "https://deno.land/x/hono@v4.0.0/mod.ts";
 import { cors } from "https://deno.land/x/hono@v4.0.0/middleware.ts";
 import { trpcServer } from "npm:@hono/trpc-server@0.3.2";
 import { initTRPC } from "npm:@trpc/server@10.45.0";
-import superjson from "npm:superjson@2.2.1";
 import { z } from "npm:zod@3.22.4";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.89.0";
 
@@ -23,9 +22,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
-const t = initTRPC.create({
-  transformer: superjson,
-});
+const t = initTRPC.create();
 
 const router = t.router;
 const publicProcedure = t.procedure;
@@ -738,6 +735,9 @@ app.use(
       return {
         supabase: supabaseAdmin,
       };
+    },
+    onError: ({ error, path }) => {
+      console.error('[tRPC Server Error]', path, error);
     },
   })
 );
